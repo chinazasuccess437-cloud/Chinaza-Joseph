@@ -1,0 +1,114 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net: deny all reads and writes by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && request.auth.token.email == 'chinazajoseph952@gmail.com';
+    }
+
+    function isValidPhotoUrl(url) {
+      return url is string &&
+        url.size() >= 10 &&
+        url.size() <= 150000 &&
+        url.matches('^(https://|data:image/(jpeg|jpg|png|webp);base64,).+$');
+    }
+
+    function isValidPerspectiveShape(data) {
+      return data.keys().hasAll([
+        'authorUid',
+        'authorName',
+        'authorRole',
+        'photoUrl',
+        'message',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'authorUid',
+        'authorName',
+        'authorRole',
+        'photoUrl',
+        'message',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      isValidId(data.authorUid) &&
+      data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 80 &&
+      data.authorRole is string && data.authorRole.size() <= 100 &&
+      isValidPhotoUrl(data.photoUrl) &&
+      data.message is string && data.message.size() >= 5 && data.message.size() <= 1200 &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidPerspectiveCreate(data) {
+      return isValidPerspectiveShape(data) &&
+        data.authorUid == request.auth.uid &&
+        data.createdAt == request.time &&
+        data.updatedAt == request.time;
+    }
+
+    function isValidPerspectiveUpdate(data, oldData) {
+      return isValidPerspectiveShape(data) &&
+        data.authorUid == oldData.authorUid &&
+        data.createdAt == oldData.createdAt &&
+        data.updatedAt == request.time;
+    }
+
+    // Connection probe document used at startup to verify Firestore connectivity.
+    match /test/connection {
+      allow get: if true;
+    }
+
+    // Public perspectives shared by Google-authenticated visitors (zero PII stored).
+    match /perspectives/{perspectiveId} {
+      allow get: if isValidId(perspectiveId);
+      allow list: if true;
+
+      allow create: if isVerifiedUser() &&
+        isValidId(perspectiveId) &&
+        isValidPerspectiveCreate(incoming());
+
+      allow update: if isVerifiedUser() &&
+        isValidId(perspectiveId) &&
+        isValidPerspectiveUpdate(incoming(), existing()) &&
+        (existing().authorUid == request.auth.uid || isAdmin()) &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'authorName',
+          'authorRole',
+          'photoUrl',
+          'message',
+          'updatedAt'
+        ]);
+
+      allow delete: if isVerifiedUser() &&
+        isValidId(perspectiveId) &&
+        (existing().authorUid == request.auth.uid || isAdmin());
+    }
+  }
+}

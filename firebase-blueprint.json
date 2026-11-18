@@ -1,0 +1,70 @@
+{
+  "entities": {
+    "Perspective": {
+      "title": "Visitor Perspective",
+      "description": "A verified perspective or architectural note shared by a Google-authenticated visitor with a mandatory profile picture.",
+      "type": "object",
+      "properties": {
+        "authorUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the signed-in author."
+        },
+        "authorName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Display name shown alongside the perspective."
+        },
+        "authorRole": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 100,
+          "description": "Optional role, discipline, or context provided by the author."
+        },
+        "photoUrl": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 150000,
+          "pattern": "^(https://|data:image/(jpeg|jpg|png|webp);base64,).+$",
+          "description": "Compulsory portrait URL or compressed base64 image identifying who shared the perspective."
+        },
+        "message": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 1200,
+          "description": "The perspective or message shared for Chinaza Joseph."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp recorded on initial creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp recorded on latest update."
+        }
+      },
+      "required": [
+        "authorUid",
+        "authorName",
+        "authorRole",
+        "photoUrl",
+        "message",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/perspectives/{perspectiveId}": {
+      "schema": {
+        "$ref": "#/entities/Perspective"
+      },
+      "description": "Publicly readable collection of verified visitor perspectives with mandatory photos and zero PII."
+    }
+  }
+}

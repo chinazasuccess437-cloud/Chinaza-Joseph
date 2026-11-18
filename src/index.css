@@ -1,0 +1,136 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Outfit", system-ui, -apple-system, sans-serif;
+  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-obsidian: #090D14;
+  --color-graphite: #101722;
+  --color-silver: #B8C5D6;
+  --color-cyan-electric: #35D6E8;
+  --color-violet-atmos: #8B70FF;
+}
+
+@layer base {
+  html {
+    background-color: #090D14;
+    color: #F1F5F9;
+    font-family: var(--font-sans);
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: #090D14;
+    overflow-x: hidden;
+    letter-spacing: 0.008em;
+    line-height: 1.65;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4, .font-display {
+    font-family: var(--font-display);
+    text-wrap: balance;
+  }
+}
+
+/* Controlled atmospheric glassmorphism surfaces with high reading contrast */
+.living-glass {
+  background: linear-gradient(155deg, rgba(16, 23, 34, 0.93) 0%, rgba(9, 13, 20, 0.96) 100%);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(184, 197, 214, 0.18);
+}
+
+.living-glass-elevated {
+  background: linear-gradient(155deg, rgba(18, 26, 39, 0.95) 0%, rgba(10, 15, 24, 0.98) 100%);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  border: 1px solid rgba(53, 214, 232, 0.25);
+  box-shadow:
+    0 24px 64px -20px rgba(0, 0, 0, 0.78),
+    0 0 40px -18px rgba(53, 214, 232, 0.18);
+}
+
+/* Subtle architectural coordinate mesh */
+.living-grid-bg {
+  background-size: 64px 64px;
+  background-image:
+    linear-gradient(to right, rgba(184, 197, 214, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(184, 197, 214, 0.04) 1px, transparent 1px);
+}
+
+/* Gentle continuous floating keyframes (GPU-composited only) */
+@keyframes floatSlow {
+  0%, 100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -10px, 0);
+  }
+}
+
+@keyframes floatGentle {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(0, -6px, 0) rotate(0.6deg);
+  }
+}
+
+@keyframes lightTrailFlow {
+  0% {
+    transform: translate3d(-30%, 0, 0);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.7;
+  }
+  80% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: translate3d(130%, 0, 0);
+    opacity: 0;
+  }
+}
+
+.animate-float-slow {
+  animation: floatSlow 7s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+.animate-float-gentle {
+  animation: floatGentle 9s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+.animate-light-trail {
+  animation: lightTrailFlow 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .animate-float-slow,
+  .animate-float-gentle,
+  .animate-light-trail {
+    animation: none !important;
+  }
+}
+
+/* Subtle custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #090D14;
+}
+::-webkit-scrollbar-thumb {
+  background: #1C2738;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #35D6E8;
+}
