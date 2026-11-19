@@ -20,13 +20,13 @@ export function FAQSection() {
       <div className="max-w-7xl mx-auto space-y-12">
         <div className="max-w-3xl space-y-3">
           <p className="text-xs sm:text-sm font-medium text-[#35D6E8] tracking-wide">
-            09. Orchestration FAQ &amp; Live Intelligence
+            09. Methodology FAQ &amp; Live Discussion
           </p>
           <h2 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-[#F1F5F9] leading-tight">
-            Methodology answers &amp; real-time architectural briefing.
+            Methodology answers &amp; direct live discussion.
           </h2>
           <p className="text-[15px] sm:text-base text-[#D4DFEC] leading-relaxed">
-            Explore common questions on Multi-Model Orchestration, Human-in-the-Loop governance, and systems consulting—or start a real-time voice and Q&amp;A discussion directly.
+            Explore common questions on Multi-Model Orchestration, Human-in-the-Loop governance, and systems consulting—or start a live voice and Q&amp;A discussion directly with me.
           </p>
         </div>
 
