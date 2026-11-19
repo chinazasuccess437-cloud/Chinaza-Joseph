@@ -26,7 +26,7 @@ export function FAQSection() {
             Methodology answers &amp; real-time architectural briefing.
           </h2>
           <p className="text-[15px] sm:text-base text-[#D4DFEC] leading-relaxed">
-            Explore common questions on Multi-Model Orchestration, Human-in-the-Loop governance, and systems consulting—or use the Gemini-powered voice and architectural briefing console directly.
+            Explore common questions on Multi-Model Orchestration, Human-in-the-Loop governance, and systems consulting—or start a real-time voice and Q&amp;A discussion directly.
           </p>
         </div>
 

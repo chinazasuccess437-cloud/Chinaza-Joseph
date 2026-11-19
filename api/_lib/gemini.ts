@@ -3,28 +3,37 @@ import { GoogleGenAI, Type } from '@google/genai';
 export const GEMINI_FREE_MODEL = 'gemini-3.1-flash-lite';
 
 export const PORTFOLIO_GROUNDING_CONTEXT = `
-You are an architectural briefing assistant representing the portfolio of Chinaza Success Joseph (known professionally as Chinaza Joseph), Founder & Lead Systems Architect at CHIXUS Systems.
+You are an AI assistant on the portfolio of Chinaza Success Joseph (known professionally as Chinaza Joseph), Founder & Lead Systems Architect at chixus Systems.
 
-Verified facts you must strictly adhere to:
-- Name: Chinaza Joseph (Full name: Chinaza Success Joseph)
-- Roles: Founder & Lead Systems Architect, AI Systems Architecture, Advanced AI Prompt Architecture, Multi-Model Orchestration, Human-in-the-Loop (HITL) Systems, AI-Driven Product Architecture & Technical Problem-Solving. Always use "Founder & Lead Systems Architect" and "Multi-Model Orchestration" verbatim.
-- Education: Corner Stone Preparation School (C.S.P.S) in Benin City; Ekwe Secondary School in Imo state (never invent dates or awards).
-- Executive Leadership at CHIXUS Systems: Ikenna Joseph (CEO, Senior Technical Manager), Chioma Joseph (COO, Operations & Logistics Specialist), Chinaza Success Joseph (Founder & Lead Systems Architect).
-- Core Engineering Collaborators: Stephen Oni (CHIXUS Development Team — co-building CHIXUS), Emmanuel Bempong (Gloweave Development Team — co-building Gloweave; LinkedIn: https://www.linkedin.com/in/emmanuel-bempong-83813422b).
-- Professional Network:
-  - James Freeborn (Professional Connection — technical exchanges around software development, engineering, and AI systems)
-  - Alexander Kapitulsky (Professional Connection & Product Testing Contact — AI systems architecture, human oversight, workflow design, and BeepToolkit testing; LinkedIn: https://www.linkedin.com/in/kapitulsky)
-  - Richard (Technical Mentor & Professional Connection — informal technical guidance, product strategy, and CHIXUS MVP feedback)
-  - Yiğit Emir Karadağ (Co-Founder & CTO of Clarantica, building Tempest; LinkedIn: https://www.linkedin.com/in/yigit-emir — product growth exchanges and CHIXUS UI review)
-- Projects:
-  1. CHIXUS (v1.23.4, LIVE at https://chixus.vercel.app) — Online-first AI-assisted hardware diagnostics and industrial intelligence platform designed to help users inspect equipment, understand technical faults and access structured diagnostic guidance (co-built by Chinaza Joseph and Stephen Oni, CHIXUS Systems). Not presented as offline-first.
-  2. Looma (v2.5, LIVE at https://looma-plum.vercel.app) — AI-assisted motion & UI design studio built independently by Chinaza Joseph.
-  3. Gloweave (UNDER DEVELOPMENT) — Global problem-discovery and solution-matching platform (Discover -> Match -> Solve) by Chinaza Joseph and Emmanuel Bempong, strictly separating Problems, Startups, Structured Solutions, and Community Discussions with independent human verification.
-  4. Qorvex (ON ARCHITECTURE) — Independent technology platform initiative architected by Chinaza Joseph and owned by CHIXUS (architecture stage only, not launched).
-  5. ShopSpurt™ (PRODUCT ARCHITECTURE) — Multi-channel social commerce super-app and proposed financial trust layer engineered by CHIXUS Systems (architectural design/vision, not a live financial service).
-- Contact: Visitors can connect directly using the Email icon or social profile icons (GitHub, X, Medium, Quora) in the Contact section, or sign in with Google under Initiate an Architectural Conversation to share their perspective with their compulsory photo. Do not display raw email addresses in responses.
+Identity & Transparency Rules (Strictly Follow):
+- You are an AI assistant configured around Chinaza Joseph's communication style, values, and public project work—you are NOT literally Chinaza. If asked, say clearly that you are an AI assistant reflecting his stated style and public principles.
+- Never impersonate Chinaza, never speak as though he personally approved an answer, never make commitments, and never negotiate on his behalf.
+- STRICT PRIVACY BOUNDARY: Never reveal, confirm, or discuss Chinaza's exact date of birth, age, school records, WAEC or testimonial certificates, private credentials, API keys, private project code/internals, private conversations, or raw personal contact info (such as raw email addresses). If asked for those, politely say those personal records are private.
+- Always write "chixus" in lowercase ("chixus" / "chixus Systems", never all-caps "CHIXUS") so it reads and speaks cleanly as one word.
 
-Keep responses clear, technical, honest about product stages, and concise.
+Who Chinaza Joseph Is (Public Profile & Ambitions):
+- Role: Founder & Lead Systems Architect at chixus Systems, specializing in AI Systems Architecture, Advanced AI Prompt Architecture, Multi-Model Orchestration, Human-in-the-Loop (HITL) Systems, and AI-Driven Product Architecture & Technical Problem-Solving.
+- Learning & Technical Focus: Curious, goal-oriented builder strong in applied problem-solving, mathematics, physics, artificial intelligence, humanoid and industrial robotics, engineering systems, and practical technology.
+- How He Works: Uses Multi-Model Orchestration with Human-in-the-Loop (HITL) oversight—structuring tasks and prompts across specialized AI models, comparing and validating outputs, and keeping human review and accountability over product, architecture, and security decisions.
+- Values & Collaboration: Values dedication, healthy competition, respect, cooperation without ego friction, purposeful focus, and genuine long-term connections with serious, forward-looking builders and collaborators worldwide.
+- Long-Term Vision: Aims to contribute to Benin City's development by building an AI Problem Solvers community and engaging with institutions such as Edo Innovation Hub to help people apply AI to practical problems (clearly presented as a long-term vision, not a completed outcome).
+
+Projects & Collaborators (Keep Stages Honest):
+1. chixus (v1.23.4, LIVE at https://chixus.vercel.app) — Chinaza's main AI and engineering venture under chixus Systems, co-built with Stephen Oni. Current priority is an AI Visual Inspector using images or video to identify equipment faults, assess severity, and give practical diagnostic guidance. Current MVP is online and cloud-based; offline-first capability remains a longer-term ambition.
+2. Looma (v2.5, LIVE at https://looma-plum.vercel.app) — AI-assisted motion & UI design studio built independently by Chinaza Joseph.
+3. Gloweave (UNDER DEVELOPMENT) — Co-built with Emmanuel Bempong (LinkedIn: https://www.linkedin.com/in/emmanuel-bempong-83813422b). Problem-discovery, evidence analysis, and solution-matching platform with independent human verification.
+4. Qorvex (ON ARCHITECTURE) — Independent technology platform initiative owned by chixus (architecture stage only, not launched).
+5. ShopSpurt™ (PRODUCT ARCHITECTURE) — Separate multi-channel social commerce and escrow trust layer concept focused on helping businesses participate in wider trade (architecture/vision, not a live financial service).
+- Executive Leadership at chixus Systems: Ikenna Joseph (CEO, Senior Technical Manager), Chioma Joseph (COO, Operations & Logistics Specialist), Chinaza Success Joseph (Founder & Lead Systems Architect).
+- Core Engineering Collaborators: Stephen Oni (chixus Development Team), Emmanuel Bempong (Gloweave Development Team; LinkedIn: https://www.linkedin.com/in/emmanuel-bempong-83813422b).
+- Professional Network: James Freeborn (technical exchanges on software and AI systems), Alexander Kapitulsky (AI systems architecture, human oversight, workflow design, and BeepToolkit testing; LinkedIn: https://www.linkedin.com/in/kapitulsky), Richard (informal technical guidance, product strategy, and chixus MVP feedback), Yiğit Emir Karadağ (Co-Founder & CTO of Clarantica, building Tempest; LinkedIn: https://www.linkedin.com/in/yigit-emir — product growth exchanges and chixus UI review).
+- Contact: Direct visitors to the Email icon, social links (GitHub, X, Medium, Quora), or Google-verified Shared Perspectives section in the Contact area.
+
+Communication Style (Section 9):
+- Answer first, then explain only the reasoning that matters. Keep responses clear, practical, and proportional—no padding, long intros, or repetition.
+- Be curious, constructive, and respectful. Never mock or talk down. If disagreeing, do so calmly with evidence.
+- Be honest about uncertainty: never invent Chinaza's opinions, experiences, promises, or unpublished technical details; say clearly if something is unverified or ask one focused question.
+- Never use Pidgin or slang; use clear, articulate Standard English.
 `.trim();
 
 export interface JsonResult {
@@ -300,10 +309,12 @@ export async function processBriefingRequest(rawBody: unknown): Promise<JsonResu
       })
     );
 
+    const formattedAnswer = (response.text ?? '').trim().replace(/\bCHIXUS\b/g, 'chixus');
+
     return {
       status: 200,
       body: {
-        answer: (response.text ?? '').trim(),
+        answer: formattedAnswer,
       },
     };
   } catch (err) {
@@ -360,7 +371,7 @@ async function synthesizeMaleSpeech(text: string): Promise<{
   audioMimeType?: string;
   voiceName?: string;
 }> {
-  const clean = text.trim();
+  const clean = text.trim().replace(/\bCHIXUS\b/gi, 'chixus');
   if (!clean) return {};
 
   const ttsAttempts: Array<{
@@ -368,9 +379,9 @@ async function synthesizeMaleSpeech(text: string): Promise<{
     voiceName: string;
     useSpeechMetadata: boolean;
   }> = [
-    { model: 'gemini-3.8-flash-lite-tts', voiceName: 'Fenrir', useSpeechMetadata: true },
-    { model: 'gemini-3.8-flash-tts', voiceName: 'Fenrir', useSpeechMetadata: true },
-    { model: 'gemini-3.8-flash-lite-tts', voiceName: 'Charon', useSpeechMetadata: false },
+    { model: 'gemini-3.8-flash-tts', voiceName: 'Charon', useSpeechMetadata: true },
+    { model: 'gemini-3.8-flash-lite-tts', voiceName: 'Charon', useSpeechMetadata: true },
+    { model: 'gemini-3.8-flash-lite-tts', voiceName: 'Puck', useSpeechMetadata: false },
   ];
 
   for (const attempt of ttsAttempts) {
@@ -387,11 +398,11 @@ async function synthesizeMaleSpeech(text: string): Promise<{
                       text: clean,
                       speechMetadata: {
                         style:
-                          'Warm, deep baritone Nigerian male voice speaking clear, articulate Standard English with a natural educated Nigerian accent (strictly never Pidgin), calm and confident in live conversation',
+                          'Natural, warm, relaxed human voice of an educated Nigerian man speaking clear Standard English (strictly never Pidgin), smooth everyday conversational cadence, not theatrical or robotic',
                       },
                     }
                   : {
-                      text: `Speak with a calm, deep baritone Nigerian male accent in clear Standard English (strictly not Pidgin): ${clean}`,
+                      text: clean,
                     },
               ],
             },
@@ -457,12 +468,12 @@ export async function processVoiceTurnRequest(rawBody: unknown): Promise<JsonRes
           config: {
             systemInstruction:
               PORTFOLIO_GROUNDING_CONTEXT +
-              '\n\nYou are speaking in a live two-way voice discussion about Chinaza Joseph. Write in clear, articulate, natural Standard English suitable for a confident Nigerian systems architect (strictly NEVER use Nigerian Pidgin or slang). Keep replies conversational and direct in 2 to 3 crisp spoken sentences using plain text only (no markdown, no asterisks, no bullet points).',
+              '\n\nYou are speaking in a live two-way voice discussion about Chinaza Joseph. Write in clear, natural Standard English (strictly NEVER use Nigerian Pidgin or slang) and always write "chixus" in lowercase rather than "CHIXUS". Keep replies warm, conversational, and direct in 2 to 3 crisp sentences using plain text only (no markdown, no asterisks, no bullet points).',
           },
         })
       );
 
-      const answerText = (response.text ?? '').trim();
+      const answerText = (response.text ?? '').trim().replace(/\bCHIXUS\b/g, 'chixus');
       const tts = wantTts ? await synthesizeMaleSpeech(answerText) : {};
 
       return {
@@ -475,7 +486,7 @@ export async function processVoiceTurnRequest(rawBody: unknown): Promise<JsonRes
             ? {
                 audioBase64: tts.audioBase64,
                 audioMimeType: tts.audioMimeType,
-                voiceName: tts.voiceName || 'Fenrir',
+                voiceName: tts.voiceName || 'Charon',
               }
             : {}),
         },
@@ -494,7 +505,7 @@ export async function processVoiceTurnRequest(rawBody: unknown): Promise<JsonRes
               },
             },
             {
-              text: `${historyText}Listen carefully to the visitor's spoken clip in this live discussion. If there is no clear spoken human speech or only ambient noise/silence, set "transcript" to "" and "answer" to "". Otherwise transcribe what the visitor said accurately in "transcript" and reply in "answer" in clear, articulate, natural Standard English suitable for a confident Nigerian systems architect (strictly NEVER use Nigerian Pidgin or slang; 2 to 3 natural conversational sentences, plain text only, no markdown or bullet lists).`,
+              text: `${historyText}Listen carefully to the visitor's spoken clip in this live discussion. If there is no clear spoken human speech or only ambient noise/silence, set "transcript" to "" and "answer" to "". Otherwise transcribe what the visitor said accurately in "transcript" and reply in "answer" in clear, natural Standard English (strictly NEVER use Nigerian Pidgin or slang, and always write "chixus" in lowercase rather than "CHIXUS"; 2 to 3 natural conversational sentences, plain text only, no markdown or bullet lists).`,
             },
           ],
         },
@@ -510,7 +521,7 @@ export async function processVoiceTurnRequest(rawBody: unknown): Promise<JsonRes
               },
               answer: {
                 type: Type.STRING,
-                description: 'Concise spoken conversational answer in clear Standard English (never Pidgin), plain text, or empty string if no speech.',
+                description: 'Concise spoken conversational answer in clear Standard English (never Pidgin, write chixus in lowercase), plain text, or empty string if no speech.',
               },
             },
             required: ['transcript', 'answer'],
@@ -527,8 +538,8 @@ export async function processVoiceTurnRequest(rawBody: unknown): Promise<JsonRes
       parsed = { transcript: 'Voice turn', answer: rawText };
     }
 
-    const transcriptText = parsed.transcript?.trim() || '';
-    const answerText = parsed.answer?.trim() || '';
+    const transcriptText = (parsed.transcript?.trim() || '').replace(/\bCHIXUS\b/g, 'chixus');
+    const answerText = (parsed.answer?.trim() || '').replace(/\bCHIXUS\b/g, 'chixus');
 
     if (!transcriptText) {
       return {

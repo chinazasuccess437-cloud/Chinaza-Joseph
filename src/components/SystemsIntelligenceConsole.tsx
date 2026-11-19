@@ -1,22 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
-  MessageSquare,
   Mic,
   PhoneOff,
-  Radio,
   Send,
   Volume2,
   VolumeX,
 } from 'lucide-react';
 import { BrandLoaderIcon } from './BrandLoaderIcon';
 
-type ConsoleMode = 'voice' | 'ask';
 type LivePhase = 'idle' | 'listening' | 'hearing' | 'thinking' | 'speaking';
 
 interface ConversationEntry {
   id: string;
-  speaker: 'You' | 'Briefing';
+  speaker: 'You' | 'Assistant';
   text: string;
 }
 
@@ -29,23 +26,19 @@ interface VoiceTurnResponse {
   voiceName?: string;
 }
 
-const BRIEFING_PRESETS = [
-  'Explain Chinaza’s Multi-Model Orchestration method',
-  'Walk through CHIXUS and Looma live systems',
-  'How does HITL verification govern Gloweave?',
+const DISCUSSION_TOPICS = [
+  'What is chixus and what problem does it solve?',
+  'Explain Chinaza’s Multi-Model Orchestration & HITL method',
+  'Tell me about Chinaza’s values, robotics interest & vision',
+  'Walk through Looma, Gloweave, Qorvex, and ShopSpurt™',
 ];
-
-const NIGERIAN_MALE_VOICES = ['microsoft abeo', 'abeo'];
 
 const PREFERRED_MALE_VOICES = [
   'microsoft abeo',
   'abeo',
   'google uk english male',
-  'microsoft guy',
   'microsoft ryan',
-  'microsoft mark',
-  'microsoft david',
-  'microsoft george',
+  'microsoft guy',
   'microsoft andrew',
   'microsoft brian',
   'microsoft christopher',
@@ -57,14 +50,19 @@ const PREFERRED_MALE_VOICES = [
   'oliver',
   'liam',
   'aaron',
-  'fred',
   'rishi',
-  'gordon',
   'male',
 ];
 
-const FEMALE_VOICE_HINTS = [
+const ROBOTIC_OR_FEMALE_VOICES = [
   'female',
+  'espeak',
+  'compact',
+  'fred',
+  'reed',
+  'rocko',
+  'grandpa',
+  'microsoft david',
   'ezinne',
   'zira',
   'samantha',
@@ -104,50 +102,28 @@ const FEMALE_VOICE_HINTS = [
   'google uk english female',
 ];
 
-function selectMaleBrowserVoice(voices: SpeechSynthesisVoice[]): {
-  voice: SpeechSynthesisVoice | null;
-  explicitMale: boolean;
-} {
-  if (!voices.length) return { voice: null, explicitMale: false };
+function selectNaturalVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
+  if (!voices.length) return null;
   const englishVoices = voices.filter((v) => v.lang.toLowerCase().startsWith('en'));
   const pool = englishVoices.length > 0 ? englishVoices : voices;
 
-  // 1. Highest priority: Nigerian male voice (e.g. Microsoft Abeo - English Nigeria)
-  for (const hint of NIGERIAN_MALE_VOICES) {
-    const ngMale = pool.find((v) => v.name.toLowerCase().includes(hint));
-    if (ngMale) return { voice: ngMale, explicitMale: true };
-  }
-
-  // 2. Explicit known male English voices
   for (const hint of PREFERRED_MALE_VOICES) {
     const match = pool.find((v) => {
       const name = v.name.toLowerCase();
-      return name.includes(hint) && !FEMALE_VOICE_HINTS.some((f) => name.includes(f));
+      return name.includes(hint) && !ROBOTIC_OR_FEMALE_VOICES.some((f) => name.includes(f));
     });
-    if (match) return { voice: match, explicitMale: true };
+    if (match) return match;
   }
 
-  // 3. Nigerian English voice (avoiding known female voices like Ezinne)
-  const ngNeutral = pool.find((v) => {
-    const lang = v.lang.toLowerCase();
-    const name = v.name.toLowerCase();
-    return (
-      (lang.includes('ng') || name.includes('nigeria')) &&
-      !FEMALE_VOICE_HINTS.some((f) => name.includes(f))
-    );
-  });
-  if (ngNeutral) return { voice: ngNeutral, explicitMale: false };
-
-  // 4. Last resort non-female English voice
-  const nonFemale = pool.find((v) => {
+  const cleanVoice = pool.find((v) => {
     const name = v.name.toLowerCase();
     const lang = v.lang.toLowerCase();
     return (
       lang !== 'en-au' &&
-      !FEMALE_VOICE_HINTS.some((f) => name.includes(f))
+      !ROBOTIC_OR_FEMALE_VOICES.some((f) => name.includes(f))
     );
   });
-  return { voice: nonFemale || pool[0] || null, explicitMale: false };
+  return cleanVoice || pool[0] || null;
 }
 
 function encodeMonoWavBase64(chunks: Float32Array[], sampleRate: number): string {
@@ -204,7 +180,7 @@ async function parseApiJson<T>(res: Response, fallbackError: string): Promise<T>
       if (!res.ok) {
         throw new Error(rawText.trim().slice(0, 220) || `${fallbackError} (HTTP ${res.status})`);
       }
-      throw new Error('Received an invalid response format from the AI briefing service.');
+      throw new Error('Received an invalid response format from the AI discussion service.');
     }
   }
 
@@ -220,24 +196,14 @@ async function parseApiJson<T>(res: Response, fallbackError: string): Promise<T>
 }
 
 export function SystemsIntelligenceConsole() {
-  const [mode, setMode] = useState<ConsoleMode>('voice');
-
-  // Live hands-free discussion state
   const [discussionActive, setDiscussionActive] = useState(false);
   const [livePhase, setLivePhase] = useState<LivePhase>('idle');
   const [micLevel, setMicLevel] = useState(0);
   const [speakReplies, setSpeakReplies] = useState(true);
   const [voiceError, setVoiceError] = useState('');
   const [conversation, setConversation] = useState<ConversationEntry[]>([]);
-  const [voiceTextInput, setVoiceTextInput] = useState('');
+  const [questionInput, setQuestionInput] = useState('');
 
-  // Text briefing Q&A state
-  const [askQuery, setAskQuery] = useState('');
-  const [askLoading, setAskLoading] = useState(false);
-  const [askAnswer, setAskAnswer] = useState('');
-  const [askError, setAskError] = useState('');
-
-  // Audio & VAD refs (used inside real-time callbacks to avoid stale closures)
   const discussionActiveRef = useRef(false);
   const phaseRef = useRef<LivePhase>('idle');
   const speakRepliesRef = useRef(true);
@@ -247,10 +213,8 @@ export function SystemsIntelligenceConsole() {
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const playbackAudioRef = useRef<HTMLAudioElement | null>(null);
-  const maleVoiceRef = useRef<{
-    voice: SpeechSynthesisVoice | null;
-    explicitMale: boolean;
-  }>({ voice: null, explicitMale: false });
+  const naturalVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
+  const threadBottomRef = useRef<HTMLDivElement | null>(null);
 
   const preRollChunksRef = useRef<Float32Array[]>([]);
   const capturedChunksRef = useRef<Float32Array[]>([]);
@@ -269,16 +233,16 @@ export function SystemsIntelligenceConsole() {
 
   useEffect(() => {
     conversationRef.current = conversation;
+    threadBottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [conversation]);
 
-  // Preload male browser voice list cleanly
   useEffect(() => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     const loadVoices = () => {
       const voices = window.speechSynthesis.getVoices();
-      const picked = selectMaleBrowserVoice(voices);
-      if (picked.voice) {
-        maleVoiceRef.current = picked;
+      const picked = selectNaturalVoice(voices);
+      if (picked) {
+        naturalVoiceRef.current = picked;
       }
     };
     loadVoices();
@@ -314,8 +278,8 @@ export function SystemsIntelligenceConsole() {
     }
   }, [setPhase]);
 
-  const speakWithMaleVoice = useCallback(
-    (text: string, audioBase64?: string, audioMimeType?: string) => {
+  const playReplyAudio = useCallback(
+    (text: string, audioBase64?: string, audioMimeType?: string, allowBrowserFallback = true) => {
       if (!speakRepliesRef.current || !text.trim()) {
         resumeListeningIfActive();
         return;
@@ -324,7 +288,6 @@ export function SystemsIntelligenceConsole() {
       stopSpeechOutput();
       setPhase('speaking');
 
-      // 1. Prefer Gemini Studio Nigerian-accented Male Voice (Fenrir / Charon) WAV audio
       if (audioBase64) {
         const mime = audioMimeType || 'audio/wav';
         const audio = new Audio(`data:${mime};base64,${audioBase64}`);
@@ -335,35 +298,41 @@ export function SystemsIntelligenceConsole() {
         };
         audio.onerror = () => {
           playbackAudioRef.current = null;
-          speakWithMaleVoice(text);
+          if (allowBrowserFallback) {
+            playReplyAudio(text, undefined, undefined, true);
+          } else {
+            resumeListeningIfActive();
+          }
         };
         void audio.play().catch(() => {
           playbackAudioRef.current = null;
-          speakWithMaleVoice(text);
+          if (allowBrowserFallback) {
+            playReplyAudio(text, undefined, undefined, true);
+          } else {
+            resumeListeningIfActive();
+          }
         });
         return;
       }
 
-      // 2. Fallback: Browser SpeechSynthesis tuned toward Nigerian English / lower male pitch
-      if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      if (!allowBrowserFallback || typeof window === 'undefined' || !('speechSynthesis' in window)) {
         resumeListeningIfActive();
         return;
       }
 
       const voices = window.speechSynthesis.getVoices();
-      const picked = maleVoiceRef.current.voice
-        ? maleVoiceRef.current
-        : selectMaleBrowserVoice(voices);
+      const picked = naturalVoiceRef.current || selectNaturalVoice(voices);
+      const spokenText = text.replace(/\bCHIXUS\b/gi, 'chixus');
 
-      const utterance = new SpeechSynthesisUtterance(text);
-      if (picked.voice) {
-        utterance.voice = picked.voice;
-        utterance.lang = picked.voice.lang || 'en-NG';
+      const utterance = new SpeechSynthesisUtterance(spokenText);
+      if (picked) {
+        utterance.voice = picked;
+        utterance.lang = picked.lang || 'en-US';
       } else {
-        utterance.lang = 'en-NG';
+        utterance.lang = 'en-US';
       }
-      utterance.pitch = picked.explicitMale ? 0.78 : 0.6;
-      utterance.rate = 0.98;
+      utterance.pitch = 1.0;
+      utterance.rate = 1.0;
       utterance.onend = () => resumeListeningIfActive();
       utterance.onerror = () => resumeListeningIfActive();
       window.speechSynthesis.speak(utterance);
@@ -411,14 +380,18 @@ export function SystemsIntelligenceConsole() {
     };
   }, [endLiveDiscussion]);
 
-  const sendVoiceTurn = useCallback(
+  const sendDiscussionTurn = useCallback(
     async (payload: { text?: string; audioBase64?: string; mimeType?: string }) => {
+      if (phaseRef.current === 'thinking') return;
       setVoiceError('');
       setPhase('thinking');
 
+      const isVoiceClip = Boolean(payload.audioBase64);
+      const shouldSpeakOut = speakRepliesRef.current && (isVoiceClip || discussionActiveRef.current);
+
       try {
         const recentHistory = conversationRef.current
-          .slice(-8)
+          .slice(-10)
           .map((entry) => `${entry.speaker}: ${entry.text}`)
           .join('\n');
 
@@ -428,13 +401,13 @@ export function SystemsIntelligenceConsole() {
           body: JSON.stringify({
             ...payload,
             history: recentHistory,
-            preferGeminiVoice: speakRepliesRef.current,
+            preferGeminiVoice: shouldSpeakOut,
           }),
         });
 
         const data = await parseApiJson<VoiceTurnResponse>(
           res,
-          'Live discussion turn failed.'
+          'Real-time discussion turn failed.'
         );
 
         if (data.noSpeech || (!data.transcript && !data.answer)) {
@@ -442,11 +415,14 @@ export function SystemsIntelligenceConsole() {
           return;
         }
 
-        const userText = data.transcript || payload.text || 'Spoken turn';
-        const replyText = data.answer || '';
+        const userText = (data.transcript || payload.text || 'Spoken question').replace(
+          /\bCHIXUS\b/g,
+          'chixus'
+        );
+        const replyText = (data.answer || '').replace(/\bCHIXUS\b/g, 'chixus');
 
         setConversation((prev) => [
-          ...prev.slice(-10),
+          ...prev.slice(-14),
           {
             id: `${Date.now()}-u`,
             speaker: 'You',
@@ -456,26 +432,26 @@ export function SystemsIntelligenceConsole() {
             ? [
                 {
                   id: `${Date.now()}-a`,
-                  speaker: 'Briefing' as const,
+                  speaker: 'Assistant' as const,
                   text: replyText,
                 },
               ]
             : []),
         ]);
 
-        if (replyText) {
-          speakWithMaleVoice(replyText, data.audioBase64, data.audioMimeType);
+        if (replyText && shouldSpeakOut) {
+          playReplyAudio(replyText, data.audioBase64, data.audioMimeType, true);
         } else {
           resumeListeningIfActive();
         }
       } catch (err) {
         setVoiceError(
-          err instanceof Error ? err.message : 'Unable to complete live discussion turn.'
+          err instanceof Error ? err.message : 'Unable to complete discussion turn.'
         );
         resumeListeningIfActive();
       }
     },
-    [resumeListeningIfActive, setPhase, speakWithMaleVoice]
+    [playReplyAudio, resumeListeningIfActive, setPhase]
   );
 
   const startLiveDiscussion = async () => {
@@ -510,7 +486,6 @@ export function SystemsIntelligenceConsole() {
       const processor = audioCtx.createScriptProcessor(2048, 1, 1);
       processorRef.current = processor;
 
-      // Silent gain node keeps ScriptProcessor running without mic feedback in speakers
       const silentGain = audioCtx.createGain();
       silentGain.gain.value = 0;
 
@@ -532,7 +507,6 @@ export function SystemsIntelligenceConsole() {
       processor.onaudioprocess = (event) => {
         if (!discussionActiveRef.current) return;
 
-        // Ignore incoming frames while processing or speaking back to prevent speaker echo
         const currentPhase = phaseRef.current;
         if (currentPhase !== 'listening' && currentPhase !== 'hearing') {
           setMicLevel(0);
@@ -588,7 +562,7 @@ export function SystemsIntelligenceConsole() {
           }
 
           const audioBase64 = encodeMonoWavBase64(chunksToSend, sampleRate);
-          void sendVoiceTurn({ audioBase64, mimeType: 'audio/wav' });
+          void sendDiscussionTurn({ audioBase64, mimeType: 'audio/wav' });
         }
       };
     } catch (err) {
@@ -616,330 +590,203 @@ export function SystemsIntelligenceConsole() {
     }
   };
 
-  const runAskBriefing = async (queryOverride?: string) => {
-    const q = (queryOverride ?? askQuery).trim();
-    if (!q || askLoading) return;
-    if (queryOverride) setAskQuery(queryOverride);
-
-    setAskLoading(true);
-    setAskError('');
-    try {
-      const res = await fetch('/api/ai/briefing', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: q }),
-      });
-      const data = await parseApiJson<{ answer?: string }>(
-        res,
-        'Architectural briefing request failed.'
-      );
-      setAskAnswer(data.answer || '');
-    } catch (err) {
-      setAskError(
-        err instanceof Error ? err.message : 'Unable to answer question right now.'
-      );
-    } finally {
-      setAskLoading(false);
-    }
-  };
-
   const statusText =
     livePhase === 'listening'
-      ? 'Live discussion open — speak naturally anytime'
+      ? 'Real-time discussion open — speak or type anytime'
       : livePhase === 'hearing'
         ? 'Listening to you… pause briefly when done'
         : livePhase === 'thinking'
-          ? 'Formulating architectural response…'
+          ? 'Thinking through your question…'
           : livePhase === 'speaking'
-            ? 'Responding live…'
-            : 'Hands-Free Live Discussion';
+            ? 'Speaking live…'
+            : 'Real-Time Voice & Q&A Discussion';
 
   return (
-    <div className="living-glass-elevated rounded-3xl p-6 sm:p-8 flex flex-col justify-between space-y-6">
-      <div className="space-y-4">
-        <div>
-          <p className="text-xs font-medium text-[#35D6E8] tracking-wide">
-            Gemini Live Voice Discussion
-          </p>
-          <h3 className="font-display text-xl sm:text-2xl font-bold text-[#F1F5F9]">
-            Live Discussion &amp; Architectural Q&amp;A
-          </h3>
-        </div>
-
-        <div
-          role="tablist"
-          aria-label="Briefing Modes"
-          className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-[#090D14]/85 border border-[#B8C5D6]/14"
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === 'voice'}
-            onClick={() => setMode('voice')}
-            className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-medium transition-all cursor-pointer ${
-              mode === 'voice'
-                ? 'bg-[#35D6E8] text-[#090D14] font-semibold shadow-[0_6px_20px_-6px_rgba(53,214,232,0.5)]'
-                : 'text-[#C9D6E6] hover:text-[#F1F5F9]'
-            }`}
-          >
-            <Radio className="w-4 h-4 shrink-0" />
-            <span>Live Discussion</span>
-          </button>
-
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === 'ask'}
-            onClick={() => setMode('ask')}
-            className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-medium transition-all cursor-pointer ${
-              mode === 'ask'
-                ? 'bg-[#35D6E8] text-[#090D14] font-semibold shadow-[0_6px_20px_-6px_rgba(53,214,232,0.5)]'
-                : 'text-[#C9D6E6] hover:text-[#F1F5F9]'
-            }`}
-          >
-            <MessageSquare className="w-4 h-4 shrink-0" />
-            <span>Ask Architecture</span>
-          </button>
-        </div>
+    <div className="living-glass-elevated rounded-3xl p-6 sm:p-8 flex flex-col justify-between space-y-5">
+      <div className="space-y-2">
+        <p className="text-xs font-medium text-[#35D6E8] tracking-wide">
+          Real-Time AI Discussion
+        </p>
+        <h3 className="font-display text-xl sm:text-2xl font-bold text-[#F1F5F9]">
+          Ask Questions &amp; Discuss Live
+        </h3>
+        <p className="text-sm text-[#D4DFEC] leading-relaxed">
+          Speak hands-free or type any question about Chinaza Joseph&rsquo;s work, values, and systems in one real-time discussion.
+        </p>
       </div>
 
-      {/* MODE 1: HANDS-FREE LIVE MALE VOICE DISCUSSION */}
-      {mode === 'voice' && (
-        <div className="space-y-4">
-          <p className="text-sm text-[#D4DFEC] leading-relaxed">
-            Tap <span className="text-[#F1F5F9] font-medium">Start Live Discussion</span> for a continuous, hands-free voice conversation—speak naturally and pause when finished for live spoken replies in clear Nigerian English.
-          </p>
-
-          <div className="rounded-2xl bg-[#090D14]/90 border border-[#B8C5D6]/14 p-5 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <div
-                  className={`w-11 h-11 rounded-2xl flex items-center justify-center border transition-colors shrink-0 ${
-                    livePhase === 'hearing' || livePhase === 'listening'
-                      ? 'bg-[#35D6E8]/15 border-[#35D6E8]/60 text-[#35D6E8]'
-                      : livePhase === 'speaking'
-                        ? 'bg-[#8B70FF]/15 border-[#8B70FF]/60 text-[#8B70FF]'
-                        : 'bg-[#101722] border-[#B8C5D6]/20 text-[#B8C5D6]'
-                  }`}
-                >
-                  {livePhase === 'thinking' ? (
-                    <BrandLoaderIcon size="sm" />
-                  ) : livePhase === 'speaking' ? (
-                    <Volume2 className="w-5 h-5 text-[#35D6E8]" />
-                  ) : (
-                    <Mic className="w-5 h-5" />
-                  )}
-                </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold text-[#F1F5F9] truncate">
-                    {statusText}
-                  </div>
-                  <div className="text-xs text-[#B8C5D6]/80 truncate">
-                    Nigerian English · Auto turn-taking
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (speakReplies) stopSpeechOutput();
-                    setSpeakReplies((prev) => !prev);
-                  }}
-                  aria-label={speakReplies ? 'Mute male voice replies' : 'Enable male voice replies'}
-                  title={speakReplies ? 'Voice audio on' : 'Voice audio muted'}
-                  className="p-2.5 rounded-xl border border-[#B8C5D6]/25 bg-[#101722] text-[#F1F5F9] hover:border-[#35D6E8]/55 transition-colors cursor-pointer"
-                >
-                  {speakReplies ? (
-                    <Volume2 className="w-4 h-4 text-[#35D6E8]" />
-                  ) : (
-                    <VolumeX className="w-4 h-4 text-[#8B70FF]" />
-                  )}
-                </button>
-
-                {livePhase === 'speaking' && (
-                  <button
-                    type="button"
-                    onClick={interruptAndSpeak}
-                    className="px-3.5 py-2.5 rounded-xl border border-[#35D6E8]/45 bg-[#35D6E8]/15 text-xs font-semibold text-[#35D6E8] hover:bg-[#35D6E8] hover:text-[#090D14] transition-colors cursor-pointer"
-                  >
-                    Interrupt
-                  </button>
-                )}
-
-                {discussionActive ? (
-                  <button
-                    type="button"
-                    onClick={endLiveDiscussion}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#8B70FF]/25 hover:bg-[#8B70FF]/35 border border-[#8B70FF]/55 text-xs font-semibold text-[#F1F5F9] transition-colors cursor-pointer"
-                  >
-                    <PhoneOff className="w-3.5 h-3.5" />
-                    <span>End Discussion</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={livePhase === 'thinking'}
-                    onClick={() => void startLiveDiscussion()}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#35D6E8] hover:bg-[#5ce1f0] disabled:opacity-55 text-xs font-semibold text-[#090D14] transition-all cursor-pointer shadow-[0_8px_24px_-8px_rgba(53,214,232,0.55)]"
-                  >
-                    <Mic className="w-4 h-4" />
-                    <span>Start Live Discussion</span>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Live Voice Level Meter */}
-            {discussionActive && (
-              <div className="space-y-1.5">
-                <div className="h-1.5 w-full rounded-full bg-[#101722] overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-[#35D6E8] to-[#8B70FF] transition-all duration-75"
-                    style={{ width: `${Math.max(4, Math.round(micLevel * 100))}%` }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {voiceError && (
-              <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-[#8B70FF]/10 border border-[#8B70FF]/35 text-xs text-[#F1F5F9]">
-                <AlertCircle className="w-4 h-4 text-[#8B70FF] shrink-0 mt-0.5" />
-                <span>{voiceError}</span>
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <div className="text-[11px] font-medium text-[#B8C5D6]/80">
-                Or start with a topic below:
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {BRIEFING_PRESETS.map((hint) => (
-                  <button
-                    key={hint}
-                    type="button"
-                    disabled={livePhase === 'thinking'}
-                    onClick={() => void sendVoiceTurn({ text: hint })}
-                    className="text-left text-xs px-3 py-1.5 rounded-lg bg-[#101722] border border-[#B8C5D6]/18 text-[#D4DFEC] hover:border-[#35D6E8]/50 hover:text-[#35D6E8] disabled:opacity-50 transition-colors cursor-pointer"
-                  >
-                    {hint}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const q = voiceTextInput.trim();
-                if (!q || livePhase === 'thinking') return;
-                setVoiceTextInput('');
-                void sendVoiceTurn({ text: q });
-              }}
-              className="flex gap-2 pt-1"
+      <div className="rounded-2xl bg-[#090D14]/90 border border-[#B8C5D6]/14 p-5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div
+              className={`w-11 h-11 rounded-2xl flex items-center justify-center border transition-colors shrink-0 ${
+                livePhase === 'hearing' || livePhase === 'listening'
+                  ? 'bg-[#35D6E8]/15 border-[#35D6E8]/60 text-[#35D6E8]'
+                  : livePhase === 'speaking'
+                    ? 'bg-[#8B70FF]/15 border-[#8B70FF]/60 text-[#8B70FF]'
+                    : 'bg-[#101722] border-[#B8C5D6]/20 text-[#B8C5D6]'
+              }`}
             >
-              <input
-                type="text"
-                value={voiceTextInput}
-                onChange={(e) => setVoiceTextInput(e.target.value)}
-                placeholder="Or type a message into the live discussion..."
-                className="flex-1 min-w-0 px-3.5 py-2 rounded-xl bg-[#101722] border border-[#B8C5D6]/20 text-xs sm:text-sm text-[#F1F5F9] placeholder-[#B8C5D6]/50 focus:outline-none focus:border-[#35D6E8]"
-              />
-              <button
-                type="submit"
-                disabled={livePhase === 'thinking' || !voiceTextInput.trim()}
-                aria-label="Send message to live discussion"
-                className="px-3.5 py-2 rounded-xl bg-[#35D6E8]/15 border border-[#35D6E8]/45 text-[#35D6E8] hover:bg-[#35D6E8] hover:text-[#090D14] disabled:opacity-45 transition-colors cursor-pointer"
-              >
-                <Send className="w-4 h-4" />
-              </button>
-            </form>
-
-            {conversation.length > 0 && (
-              <div className="max-h-52 overflow-y-auto space-y-2.5 pt-3 border-t border-[#B8C5D6]/12">
-                {conversation.map((entry) => (
-                  <div key={entry.id} className="text-xs leading-relaxed">
-                    <span
-                      className={`font-semibold mr-2 ${
-                        entry.speaker === 'You' ? 'text-[#B8C5D6]' : 'text-[#35D6E8]'
-                      }`}
-                    >
-                      {entry.speaker}:
-                    </span>
-                    <span className="text-[#D4DFEC]">{entry.text}</span>
-                  </div>
-                ))}
+              {livePhase === 'thinking' ? (
+                <BrandLoaderIcon size="sm" />
+              ) : livePhase === 'speaking' ? (
+                <Volume2 className="w-5 h-5 text-[#35D6E8]" />
+              ) : (
+                <Mic className="w-5 h-5" />
+              )}
+            </div>
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-[#F1F5F9] truncate">
+                {statusText}
               </div>
+              <div className="text-xs text-[#B8C5D6]/80 truncate">
+                Real-time voice &amp; Q&amp;A · Auto turn-taking
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                if (speakReplies) stopSpeechOutput();
+                setSpeakReplies((prev) => !prev);
+              }}
+              aria-label={speakReplies ? 'Mute voice replies' : 'Enable voice replies'}
+              title={speakReplies ? 'Voice audio on' : 'Voice audio muted'}
+              className="p-2.5 rounded-xl border border-[#B8C5D6]/25 bg-[#101722] text-[#F1F5F9] hover:border-[#35D6E8]/55 transition-colors cursor-pointer"
+            >
+              {speakReplies ? (
+                <Volume2 className="w-4 h-4 text-[#35D6E8]" />
+              ) : (
+                <VolumeX className="w-4 h-4 text-[#8B70FF]" />
+              )}
+            </button>
+
+            {livePhase === 'speaking' && (
+              <button
+                type="button"
+                onClick={interruptAndSpeak}
+                className="px-3.5 py-2.5 rounded-xl border border-[#35D6E8]/45 bg-[#35D6E8]/15 text-xs font-semibold text-[#35D6E8] hover:bg-[#35D6E8] hover:text-[#090D14] transition-colors cursor-pointer"
+              >
+                Interrupt
+              </button>
+            )}
+
+            {discussionActive ? (
+              <button
+                type="button"
+                onClick={endLiveDiscussion}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#8B70FF]/25 hover:bg-[#8B70FF]/35 border border-[#8B70FF]/55 text-xs font-semibold text-[#F1F5F9] transition-colors cursor-pointer"
+              >
+                <PhoneOff className="w-3.5 h-3.5" />
+                <span>End Discussion</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={livePhase === 'thinking'}
+                onClick={() => void startLiveDiscussion()}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#35D6E8] hover:bg-[#5ce1f0] disabled:opacity-55 text-xs font-semibold text-[#090D14] transition-all cursor-pointer shadow-[0_8px_24px_-8px_rgba(53,214,232,0.55)]"
+              >
+                <Mic className="w-4 h-4" />
+                <span>Start Real-Time Discussion</span>
+              </button>
             )}
           </div>
         </div>
-      )}
 
-      {/* MODE 2: ARCHITECTURAL Q&A */}
-      {mode === 'ask' && (
-        <div className="space-y-4">
-          <p className="text-sm text-[#D4DFEC] leading-relaxed">
-            Ask detailed questions about Chinaza Joseph&rsquo;s Multi-Model Orchestration methodology, HITL design principles, CHIXUS, Looma, Gloweave, Qorvex, or ShopSpurt™.
-          </p>
+        {/* Live Voice Level Meter */}
+        {discussionActive && (
+          <div className="space-y-1.5">
+            <div className="h-1.5 w-full rounded-full bg-[#101722] overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-[#35D6E8] to-[#8B70FF] transition-all duration-75"
+                style={{ width: `${Math.max(4, Math.round(micLevel * 100))}%` }}
+              />
+            </div>
+          </div>
+        )}
 
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void runAskBriefing();
-            }}
-            className="flex gap-2"
-          >
-            <input
-              type="text"
-              value={askQuery}
-              onChange={(e) => setAskQuery(e.target.value)}
-              placeholder="Ask about Chinaza's architecture or projects..."
-              className="flex-1 min-w-0 px-4 py-2.5 rounded-xl bg-[#090D14] border border-[#B8C5D6]/20 text-sm text-[#F1F5F9] placeholder-[#B8C5D6]/50 focus:outline-none focus:border-[#35D6E8]"
-            />
-            <button
-              type="submit"
-              disabled={askLoading || !askQuery.trim()}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#35D6E8] hover:bg-[#5ce1f0] disabled:opacity-50 text-xs sm:text-sm font-semibold text-[#090D14] transition-colors cursor-pointer shrink-0"
-            >
-              {askLoading ? (
-                <BrandLoaderIcon size="xs" />
-              ) : (
-                <Send className="w-4 h-4" />
-              )}
-              <span>Ask</span>
-            </button>
-          </form>
+        {voiceError && (
+          <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-[#8B70FF]/10 border border-[#8B70FF]/35 text-xs text-[#F1F5F9]">
+            <AlertCircle className="w-4 h-4 text-[#8B70FF] shrink-0 mt-0.5" />
+            <span>{voiceError}</span>
+          </div>
+        )}
 
+        {/* Quick Questions & Topics */}
+        <div className="space-y-2">
+          <div className="text-[11px] font-medium text-[#B8C5D6]/80">
+            Ask a question or pick a topic:
+          </div>
           <div className="flex flex-wrap gap-2">
-            {BRIEFING_PRESETS.map((preset) => (
+            {DISCUSSION_TOPICS.map((topic) => (
               <button
-                key={preset}
+                key={topic}
                 type="button"
-                onClick={() => void runAskBriefing(preset)}
-                className="text-left text-xs px-3 py-1.5 rounded-lg bg-[#090D14]/80 border border-[#B8C5D6]/18 text-[#C9D6E6] hover:border-[#35D6E8]/50 hover:text-[#35D6E8] transition-colors cursor-pointer"
+                disabled={livePhase === 'thinking'}
+                onClick={() => void sendDiscussionTurn({ text: topic })}
+                className="text-left text-xs px-3 py-1.5 rounded-lg bg-[#101722] border border-[#B8C5D6]/18 text-[#D4DFEC] hover:border-[#35D6E8]/50 hover:text-[#35D6E8] disabled:opacity-50 transition-colors cursor-pointer"
               >
-                {preset}
+                {topic}
               </button>
             ))}
           </div>
-
-          {askError && (
-            <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-[#8B70FF]/10 border border-[#8B70FF]/35 text-xs text-[#F1F5F9]">
-              <AlertCircle className="w-4 h-4 text-[#8B70FF] shrink-0 mt-0.5" />
-              <span>{askError}</span>
-            </div>
-          )}
-
-          {askAnswer && (
-            <div className="rounded-2xl bg-[#090D14]/90 border border-[#B8C5D6]/14 p-4 sm:p-5">
-              <div className="text-sm text-[#D4DFEC] leading-relaxed whitespace-pre-line max-h-64 overflow-y-auto pr-1">
-                {askAnswer}
-              </div>
-            </div>
-          )}
         </div>
-      )}
+
+        {/* Unified Q&A / Discussion Input */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const q = questionInput.trim();
+            if (!q || livePhase === 'thinking') return;
+            setQuestionInput('');
+            void sendDiscussionTurn({ text: q });
+          }}
+          className="flex gap-2 pt-1"
+        >
+          <input
+            type="text"
+            value={questionInput}
+            onChange={(e) => setQuestionInput(e.target.value)}
+            placeholder="Ask anything about Chinaza, chixus, systems, or projects..."
+            className="flex-1 min-w-0 px-4 py-2.5 rounded-xl bg-[#101722] border border-[#B8C5D6]/20 text-xs sm:text-sm text-[#F1F5F9] placeholder-[#B8C5D6]/50 focus:outline-none focus:border-[#35D6E8]"
+          />
+          <button
+            type="submit"
+            disabled={livePhase === 'thinking' || !questionInput.trim()}
+            aria-label="Send question to discussion"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#35D6E8]/15 border border-[#35D6E8]/45 text-xs sm:text-sm font-semibold text-[#35D6E8] hover:bg-[#35D6E8] hover:text-[#090D14] disabled:opacity-45 transition-colors cursor-pointer shrink-0"
+          >
+            {livePhase === 'thinking' ? (
+              <BrandLoaderIcon size="xs" />
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
+            <span>Ask</span>
+          </button>
+        </form>
+
+        {/* Conversation Thread */}
+        {conversation.length > 0 && (
+          <div className="max-h-64 overflow-y-auto space-y-3 pt-3 border-t border-[#B8C5D6]/12 pr-1">
+            {conversation.map((entry) => (
+              <div key={entry.id} className="text-xs sm:text-[13px] leading-relaxed">
+                <span
+                  className={`font-semibold mr-2 ${
+                    entry.speaker === 'You' ? 'text-[#B8C5D6]' : 'text-[#35D6E8]'
+                  }`}
+                >
+                  {entry.speaker}:
+                </span>
+                <span className="text-[#D4DFEC]">{entry.text}</span>
+              </div>
+            ))}
+            <div ref={threadBottomRef} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

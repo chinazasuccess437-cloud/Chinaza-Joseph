@@ -352,7 +352,7 @@ export const PROJECTS: ProjectItem[] = [
     problemsList: [
       'Zero Built-In Trust: Buyers fear paying upfront to unverified social accounts.',
       'Fragmented Tools: Sellers juggle multiple applications for listings, messages, shipping, foreign exchange, payments and receipts.',
-      'Platform Lock-In and Regional Gaps: Native social checkout systems remain unavailable or restricted in Nigeria and many emerging markets.',
+      'Platform Lock-In and Regional Gaps: Native social checkout systems remain unavailable or restricted across many emerging markets.',
     ],
     capabilities: [
       'Multi-Channel Social Broadcasting with AI-assisted copy & hashtag optimization',
