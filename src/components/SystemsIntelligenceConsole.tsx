@@ -16,7 +16,7 @@ type LivePhase = 'idle' | 'listening' | 'hearing' | 'thinking' | 'speaking';
 
 interface ConversationEntry {
   id: string;
-  speaker: 'You' | 'Male Architectural Voice';
+  speaker: 'You' | 'Briefing';
   text: string;
 }
 
@@ -35,13 +35,22 @@ const BRIEFING_PRESETS = [
   'How does HITL verification govern Gloweave?',
 ];
 
+const NIGERIAN_MALE_VOICES = ['microsoft abeo', 'abeo'];
+
 const PREFERRED_MALE_VOICES = [
+  'microsoft abeo',
+  'abeo',
   'google uk english male',
   'microsoft guy',
   'microsoft ryan',
   'microsoft mark',
   'microsoft david',
   'microsoft george',
+  'microsoft andrew',
+  'microsoft brian',
+  'microsoft christopher',
+  'microsoft eric',
+  'microsoft steffan',
   'daniel',
   'alex',
   'arthur',
@@ -49,11 +58,14 @@ const PREFERRED_MALE_VOICES = [
   'liam',
   'aaron',
   'fred',
+  'rishi',
+  'gordon',
   'male',
 ];
 
 const FEMALE_VOICE_HINTS = [
   'female',
+  'ezinne',
   'zira',
   'samantha',
   'victoria',
@@ -70,25 +82,72 @@ const FEMALE_VOICE_HINTS = [
   'clara',
   'moira',
   'veena',
+  'lekha',
+  'natasha',
+  'hayley',
+  'catherine',
+  'katherine',
+  'amy',
+  'emma',
+  'olivia',
+  'nicole',
+  'joanna',
+  'salli',
+  'ivy',
+  'kimberly',
+  'kendra',
+  'ava',
+  'allison',
+  'kate',
+  'english australia',
+  'google us english',
+  'google uk english female',
 ];
 
-function selectMaleBrowserVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
-  if (!voices.length) return null;
+function selectMaleBrowserVoice(voices: SpeechSynthesisVoice[]): {
+  voice: SpeechSynthesisVoice | null;
+  explicitMale: boolean;
+} {
+  if (!voices.length) return { voice: null, explicitMale: false };
   const englishVoices = voices.filter((v) => v.lang.toLowerCase().startsWith('en'));
   const pool = englishVoices.length > 0 ? englishVoices : voices;
 
+  // 1. Highest priority: Nigerian male voice (e.g. Microsoft Abeo - English Nigeria)
+  for (const hint of NIGERIAN_MALE_VOICES) {
+    const ngMale = pool.find((v) => v.name.toLowerCase().includes(hint));
+    if (ngMale) return { voice: ngMale, explicitMale: true };
+  }
+
+  // 2. Explicit known male English voices
   for (const hint of PREFERRED_MALE_VOICES) {
     const match = pool.find((v) => {
       const name = v.name.toLowerCase();
       return name.includes(hint) && !FEMALE_VOICE_HINTS.some((f) => name.includes(f));
     });
-    if (match) return match;
+    if (match) return { voice: match, explicitMale: true };
   }
 
-  const nonFemale = pool.find(
-    (v) => !FEMALE_VOICE_HINTS.some((f) => v.name.toLowerCase().includes(f))
-  );
-  return nonFemale || pool[0] || null;
+  // 3. Nigerian English voice (avoiding known female voices like Ezinne)
+  const ngNeutral = pool.find((v) => {
+    const lang = v.lang.toLowerCase();
+    const name = v.name.toLowerCase();
+    return (
+      (lang.includes('ng') || name.includes('nigeria')) &&
+      !FEMALE_VOICE_HINTS.some((f) => name.includes(f))
+    );
+  });
+  if (ngNeutral) return { voice: ngNeutral, explicitMale: false };
+
+  // 4. Last resort non-female English voice
+  const nonFemale = pool.find((v) => {
+    const name = v.name.toLowerCase();
+    const lang = v.lang.toLowerCase();
+    return (
+      lang !== 'en-au' &&
+      !FEMALE_VOICE_HINTS.some((f) => name.includes(f))
+    );
+  });
+  return { voice: nonFemale || pool[0] || null, explicitMale: false };
 }
 
 function encodeMonoWavBase64(chunks: Float32Array[], sampleRate: number): string {
@@ -168,7 +227,6 @@ export function SystemsIntelligenceConsole() {
   const [livePhase, setLivePhase] = useState<LivePhase>('idle');
   const [micLevel, setMicLevel] = useState(0);
   const [speakReplies, setSpeakReplies] = useState(true);
-  const [voiceLabel, setVoiceLabel] = useState('Male Voice (Charon / Male Synth)');
   const [voiceError, setVoiceError] = useState('');
   const [conversation, setConversation] = useState<ConversationEntry[]>([]);
   const [voiceTextInput, setVoiceTextInput] = useState('');
@@ -189,7 +247,10 @@ export function SystemsIntelligenceConsole() {
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const playbackAudioRef = useRef<HTMLAudioElement | null>(null);
-  const maleVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
+  const maleVoiceRef = useRef<{
+    voice: SpeechSynthesisVoice | null;
+    explicitMale: boolean;
+  }>({ voice: null, explicitMale: false });
 
   const preRollChunksRef = useRef<Float32Array[]>([]);
   const capturedChunksRef = useRef<Float32Array[]>([]);
@@ -216,7 +277,7 @@ export function SystemsIntelligenceConsole() {
     const loadVoices = () => {
       const voices = window.speechSynthesis.getVoices();
       const picked = selectMaleBrowserVoice(voices);
-      if (picked) {
+      if (picked.voice) {
         maleVoiceRef.current = picked;
       }
     };
@@ -263,9 +324,8 @@ export function SystemsIntelligenceConsole() {
       stopSpeechOutput();
       setPhase('speaking');
 
-      // 1. Prefer Gemini Studio Male Voice (Charon) WAV audio when provided
+      // 1. Prefer Gemini Studio Nigerian-accented Male Voice (Fenrir / Charon) WAV audio
       if (audioBase64) {
-        setVoiceLabel('Male Voice: Gemini Charon');
         const mime = audioMimeType || 'audio/wav';
         const audio = new Audio(`data:${mime};base64,${audioBase64}`);
         playbackAudioRef.current = audio;
@@ -275,7 +335,6 @@ export function SystemsIntelligenceConsole() {
         };
         audio.onerror = () => {
           playbackAudioRef.current = null;
-          // Fall back cleanly to male browser synthesis
           speakWithMaleVoice(text);
         };
         void audio.play().catch(() => {
@@ -285,24 +344,26 @@ export function SystemsIntelligenceConsole() {
         return;
       }
 
-      // 2. Fallback: Male browser SpeechSynthesis tuned to a male register
+      // 2. Fallback: Browser SpeechSynthesis tuned toward Nigerian English / lower male pitch
       if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
         resumeListeningIfActive();
         return;
       }
 
       const voices = window.speechSynthesis.getVoices();
-      const maleVoice = maleVoiceRef.current || selectMaleBrowserVoice(voices);
-      setVoiceLabel(
-        maleVoice ? `Male Voice: ${maleVoice.name}` : 'Male Voice (Deep Pitch)'
-      );
+      const picked = maleVoiceRef.current.voice
+        ? maleVoiceRef.current
+        : selectMaleBrowserVoice(voices);
 
       const utterance = new SpeechSynthesisUtterance(text);
-      if (maleVoice) {
-        utterance.voice = maleVoice;
+      if (picked.voice) {
+        utterance.voice = picked.voice;
+        utterance.lang = picked.voice.lang || 'en-NG';
+      } else {
+        utterance.lang = 'en-NG';
       }
-      utterance.pitch = 0.8; // Natural deeper male register
-      utterance.rate = 1.0;
+      utterance.pitch = picked.explicitMale ? 0.78 : 0.6;
+      utterance.rate = 0.98;
       utterance.onend = () => resumeListeningIfActive();
       utterance.onerror = () => resumeListeningIfActive();
       window.speechSynthesis.speak(utterance);
@@ -395,7 +456,7 @@ export function SystemsIntelligenceConsole() {
             ? [
                 {
                   id: `${Date.now()}-a`,
-                  speaker: 'Male Architectural Voice' as const,
+                  speaker: 'Briefing' as const,
                   text: replyText,
                 },
               ]
@@ -590,8 +651,8 @@ export function SystemsIntelligenceConsole() {
         : livePhase === 'thinking'
           ? 'Formulating architectural response…'
           : livePhase === 'speaking'
-            ? 'Male voice responding live…'
-            : 'Hands-Free Live Discussion (Male Voice)';
+            ? 'Responding live…'
+            : 'Hands-Free Live Discussion';
 
   return (
     <div className="living-glass-elevated rounded-3xl p-6 sm:p-8 flex flex-col justify-between space-y-6">
@@ -646,7 +707,7 @@ export function SystemsIntelligenceConsole() {
       {mode === 'voice' && (
         <div className="space-y-4">
           <p className="text-sm text-[#D4DFEC] leading-relaxed">
-            Tap <span className="text-[#F1F5F9] font-medium">Start Live Discussion</span> for a continuous, hands-free voice conversation—just speak naturally and pause when finished; replies play automatically in a natural male voice.
+            Tap <span className="text-[#F1F5F9] font-medium">Start Live Discussion</span> for a continuous, hands-free voice conversation—speak naturally and pause when finished for live spoken replies in clear Nigerian English.
           </p>
 
           <div className="rounded-2xl bg-[#090D14]/90 border border-[#B8C5D6]/14 p-5 space-y-4">
@@ -674,7 +735,7 @@ export function SystemsIntelligenceConsole() {
                     {statusText}
                   </div>
                   <div className="text-xs text-[#B8C5D6]/80 truncate">
-                    {voiceLabel} · Auto turn-taking
+                    Nigerian English · Auto turn-taking
                   </div>
                 </div>
               </div>

@@ -311,52 +311,117 @@ export async function processBriefingRequest(rawBody: unknown): Promise<JsonResu
   }
 }
 
+function ensurePlayableWav(base64Data: string, mimeType: string): {
+  audioBase64: string;
+  audioMimeType: string;
+} {
+  const lower = mimeType.toLowerCase();
+  if (lower.includes('wav') || lower.includes('mpeg') || lower.includes('mp3') || lower.includes('ogg')) {
+    return { audioBase64: base64Data, audioMimeType: mimeType || 'audio/wav' };
+  }
+
+  // Wrap raw PCM (L16) into a 44-byte RIFF/WAV header if a TTS response returns headerless PCM
+  const pcmBytes = Buffer.from(base64Data, 'base64');
+  if (
+    pcmBytes.length >= 4 &&
+    pcmBytes[0] === 0x52 &&
+    pcmBytes[1] === 0x49 &&
+    pcmBytes[2] === 0x46 &&
+    pcmBytes[3] === 0x46
+  ) {
+    return { audioBase64: base64Data, audioMimeType: 'audio/wav' };
+  }
+
+  const sampleRateMatch = /rate=(\d+)/i.exec(mimeType);
+  const sampleRate = sampleRateMatch ? Number(sampleRateMatch[1]) : 24000;
+  const header = Buffer.alloc(44);
+  header.write('RIFF', 0);
+  header.writeUInt32LE(36 + pcmBytes.length, 4);
+  header.write('WAVE', 8);
+  header.write('fmt ', 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(1, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(sampleRate * 2, 28);
+  header.writeUInt16LE(2, 32);
+  header.writeUInt16LE(16, 34);
+  header.write('data', 36);
+  header.writeUInt32LE(pcmBytes.length, 40);
+
+  return {
+    audioBase64: Buffer.concat([header, pcmBytes]).toString('base64'),
+    audioMimeType: 'audio/wav',
+  };
+}
+
 async function synthesizeMaleSpeech(text: string): Promise<{
   audioBase64?: string;
   audioMimeType?: string;
+  voiceName?: string;
 }> {
   const clean = text.trim();
   if (!clean) return {};
 
-  try {
-    const ttsResponse = await runWithGeminiClient((ai) =>
-      ai.models.generateContent({
-        model: 'gemini-3.8-flash-lite-tts',
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              {
-                text: clean,
-                speechMetadata: {
-                  style: 'Calm, confident male systems architect in a live discussion',
-                },
+  const ttsAttempts: Array<{
+    model: string;
+    voiceName: string;
+    useSpeechMetadata: boolean;
+  }> = [
+    { model: 'gemini-3.8-flash-lite-tts', voiceName: 'Fenrir', useSpeechMetadata: true },
+    { model: 'gemini-3.8-flash-tts', voiceName: 'Fenrir', useSpeechMetadata: true },
+    { model: 'gemini-3.8-flash-lite-tts', voiceName: 'Charon', useSpeechMetadata: false },
+  ];
+
+  for (const attempt of ttsAttempts) {
+    try {
+      const ttsResponse = await runWithGeminiClient((ai) =>
+        ai.models.generateContent({
+          model: attempt.model,
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                attempt.useSpeechMetadata
+                  ? {
+                      text: clean,
+                      speechMetadata: {
+                        style:
+                          'Warm, deep baritone Nigerian male voice speaking clear, articulate Standard English with a natural educated Nigerian accent (strictly never Pidgin), calm and confident in live conversation',
+                      },
+                    }
+                  : {
+                      text: `Speak with a calm, deep baritone Nigerian male accent in clear Standard English (strictly not Pidgin): ${clean}`,
+                    },
+              ],
+            },
+          ],
+          config: {
+            responseModalities: ['AUDIO'],
+            speechConfig: {
+              voiceConfig: {
+                prebuiltVoiceConfig: { voiceName: attempt.voiceName },
               },
-            ],
-          },
-        ],
-        config: {
-          responseModalities: ['AUDIO'],
-          speechConfig: {
-            voiceConfig: {
-              // Deep, clear male Gemini voice
-              prebuiltVoiceConfig: { voiceName: 'Charon' },
             },
           },
-        },
-      })
-    );
+        })
+      );
 
-    const inlineAudio =
-      ttsResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData;
-    if (inlineAudio?.data) {
-      return {
-        audioBase64: inlineAudio.data,
-        audioMimeType: inlineAudio.mimeType || 'audio/wav',
-      };
+      const inlineAudio =
+        ttsResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+      if (inlineAudio?.data) {
+        const playable = ensurePlayableWav(
+          inlineAudio.data,
+          inlineAudio.mimeType || 'audio/wav'
+        );
+        return {
+          ...playable,
+          voiceName: attempt.voiceName,
+        };
+      }
+    } catch {
+      // Try next TTS configuration before falling back cleanly
     }
-  } catch {
-    // Gracefully fall back to client male voice synthesis if TTS quota or tier limits occur
   }
 
   return {};
@@ -392,7 +457,7 @@ export async function processVoiceTurnRequest(rawBody: unknown): Promise<JsonRes
           config: {
             systemInstruction:
               PORTFOLIO_GROUNDING_CONTEXT +
-              '\n\nYou are speaking as a knowledgeable male architectural representative in a live two-way voice discussion about Chinaza Joseph. Respond naturally, directly, and conversationally in 2 to 3 crisp spoken sentences with plain text (no markdown, no asterisks, no bullet points), inviting natural follow-up.',
+              '\n\nYou are speaking in a live two-way voice discussion about Chinaza Joseph. Write in clear, articulate, natural Standard English suitable for a confident Nigerian systems architect (strictly NEVER use Nigerian Pidgin or slang). Keep replies conversational and direct in 2 to 3 crisp spoken sentences using plain text only (no markdown, no asterisks, no bullet points).',
           },
         })
       );
@@ -410,7 +475,7 @@ export async function processVoiceTurnRequest(rawBody: unknown): Promise<JsonRes
             ? {
                 audioBase64: tts.audioBase64,
                 audioMimeType: tts.audioMimeType,
-                voiceName: 'Charon',
+                voiceName: tts.voiceName || 'Fenrir',
               }
             : {}),
         },
@@ -429,7 +494,7 @@ export async function processVoiceTurnRequest(rawBody: unknown): Promise<JsonRes
               },
             },
             {
-              text: `${historyText}Listen carefully to the visitor's spoken clip in this live discussion. If there is no clear spoken human speech or only ambient noise/silence, set "transcript" to "" and "answer" to "". Otherwise transcribe what the visitor said accurately in "transcript" and reply in "answer" as a knowledgeable male architectural representative in a live voice discussion (2 to 3 natural conversational sentences, plain text only, no markdown or bullet lists).`,
+              text: `${historyText}Listen carefully to the visitor's spoken clip in this live discussion. If there is no clear spoken human speech or only ambient noise/silence, set "transcript" to "" and "answer" to "". Otherwise transcribe what the visitor said accurately in "transcript" and reply in "answer" in clear, articulate, natural Standard English suitable for a confident Nigerian systems architect (strictly NEVER use Nigerian Pidgin or slang; 2 to 3 natural conversational sentences, plain text only, no markdown or bullet lists).`,
             },
           ],
         },
@@ -445,7 +510,7 @@ export async function processVoiceTurnRequest(rawBody: unknown): Promise<JsonRes
               },
               answer: {
                 type: Type.STRING,
-                description: 'Concise spoken conversational answer in plain text, or empty string if no speech.',
+                description: 'Concise spoken conversational answer in clear Standard English (never Pidgin), plain text, or empty string if no speech.',
               },
             },
             required: ['transcript', 'answer'],

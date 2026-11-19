@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import chinazaAppIcon from '../assets/images/chinaza_app_icon_1795098406271.jpg';
 
-const PRIMARY_BRAND_ICON = '/icon-512.png';
+const PRIMARY_ICON_PHOTO = '/assets/aistudio/1795030911144_f9549967.jpg';
+const FALLBACK_ICON_PHOTO = '/app-icon-192.png';
 
 interface BrandLoaderIconProps {
   size?: 'xs' | 'sm' | 'lg';
@@ -9,8 +9,8 @@ interface BrandLoaderIconProps {
 }
 
 export function BrandLoaderIcon({ size = 'sm', spinning = true }: BrandLoaderIconProps) {
-  const [src, setSrc] = useState<string>(PRIMARY_BRAND_ICON);
-  const usingFallback = src !== PRIMARY_BRAND_ICON;
+  const [src, setSrc] = useState(PRIMARY_ICON_PHOTO);
+  const usingFallback = src !== PRIMARY_ICON_PHOTO;
 
   const dims =
     size === 'lg'
@@ -52,7 +52,7 @@ export function BrandLoaderIcon({ size = 'sm', spinning = true }: BrandLoaderIco
         }}
       />
 
-      {/* Rounded App-Icon Frame */}
+      {/* Rounded App-Icon Portrait Frame */}
       <div
         className={`absolute ${dims.imgWrap} overflow-hidden bg-[#090D14] border border-[#35D6E8]/25 shadow-[0_8px_24px_-6px_rgba(53,214,232,0.38)]`}
       >
@@ -61,12 +61,12 @@ export function BrandLoaderIcon({ size = 'sm', spinning = true }: BrandLoaderIco
           alt=""
           referrerPolicy="no-referrer"
           onError={() => {
-            if (src !== chinazaAppIcon) {
-              setSrc(chinazaAppIcon);
+            if (src !== FALLBACK_ICON_PHOTO) {
+              setSrc(FALLBACK_ICON_PHOTO);
             }
           }}
-          className={`w-full h-full object-cover object-center ${
-            usingFallback ? 'scale-[1.38]' : ''
+          className={`w-full h-full object-cover ${
+            usingFallback ? 'object-center' : 'object-[54%_55%] scale-[1.35]'
           }`}
         />
       </div>
