@@ -37,6 +37,32 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
+async function parseApiJson<T>(res: Response, fallbackError: string): Promise<T> {
+  const rawText = await res.text();
+  let parsed: (T & { error?: string }) | null = null;
+
+  if (rawText.trim().length > 0) {
+    try {
+      parsed = JSON.parse(rawText) as T & { error?: string };
+    } catch {
+      if (!res.ok) {
+        throw new Error(rawText.trim().slice(0, 220) || `${fallbackError} (HTTP ${res.status})`);
+      }
+      throw new Error('Received an invalid response format from the AI briefing service.');
+    }
+  }
+
+  if (!res.ok) {
+    throw new Error(parsed?.error || `${fallbackError} (HTTP ${res.status})`);
+  }
+
+  if (!parsed) {
+    throw new Error('The AI service returned an empty response. Please try again.');
+  }
+
+  return parsed;
+}
+
 export function SystemsIntelligenceConsole() {
   const [mode, setMode] = useState<ConsoleMode>('voice');
 
@@ -117,15 +143,10 @@ export function SystemsIntelligenceConsole() {
         }),
       });
 
-      const data = (await res.json()) as {
+      const data = await parseApiJson<{
         transcript?: string;
         answer?: string;
-        error?: string;
-      };
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Voice conversation turn failed.');
-      }
+      }>(res, 'Voice conversation turn failed.');
 
       const userText = data.transcript || payload.text || 'Voice question';
       const replyText = data.answer || '';
@@ -245,10 +266,10 @@ export function SystemsIntelligenceConsole() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: q }),
       });
-      const data = (await res.json()) as { answer?: string; error?: string };
-      if (!res.ok) {
-        throw new Error(data.error || 'Architectural briefing request failed.');
-      }
+      const data = await parseApiJson<{ answer?: string }>(
+        res,
+        'Architectural briefing request failed.'
+      );
       setAskAnswer(data.answer || '');
     } catch (err) {
       setAskError(

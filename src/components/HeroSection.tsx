@@ -9,20 +9,20 @@ const FALLBACK_PORTRAIT_PATH =
 
 const ARCHITECTURAL_PILLARS = [
   {
-    label: 'Prompt Architecture',
-    detail: 'Structured instruction hierarchies & deterministic output contracts',
+    label: 'AI Systems & Prompt Architecture',
+    detail: 'Layered instruction hierarchies, semantic guardrails & deterministic output schemas',
   },
   {
     label: 'Multi-Model Orchestration',
-    detail: 'Specialized model routing for reasoning, synthesis & implementation',
+    detail: 'Specialized model routing for reasoning, comparative research & implementation',
   },
   {
-    label: 'HITL Governance',
-    detail: 'Independent human verification & architectural decision gates',
+    label: 'Human-in-the-Loop (HITL) Systems',
+    detail: 'Independent human verification gates & accountable architectural decisions',
   },
   {
-    label: 'Resilient Systems',
-    detail: 'Full-stack web, backend APIs & offline-capable application architectures',
+    label: 'AI-Driven Product Architecture',
+    detail: 'Technical problem-solving across full-stack web, backend APIs & offline-capable systems',
   },
 ];
 
@@ -102,13 +102,17 @@ export function HeroSection() {
               ))}
             </div>
 
+            <p className="text-xs sm:text-[13px] text-[#B8C5D6]/85 max-w-2xl">
+              Designed for technical evaluation by investors, hiring managers, founders, and collaborators—separating shipped products from active builds and system blueprints.
+            </p>
+
             {/* Primary Navigation CTAs */}
             <div className="pt-2 flex flex-wrap items-center gap-4">
               <a
                 href="#projects"
                 className="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-xl bg-[#35D6E8] hover:bg-[#5ce1f0] text-[#090D14] font-semibold text-sm transition-all duration-200 shadow-[0_10px_30px_-8px_rgba(53,214,232,0.55)] whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F1F5F9]"
               >
-                <span>Explore Five Projects</span>
+                <span>View Five Systems</span>
                 <ArrowDownRight className="w-4 h-4" />
               </a>
 
@@ -117,7 +121,7 @@ export function HeroSection() {
                 className="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-xl border border-[#B8C5D6]/25 bg-[#101722]/80 hover:border-[#35D6E8]/60 hover:text-[#35D6E8] text-[#F1F5F9] font-medium text-sm transition-all duration-200 whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#35D6E8]"
               >
                 <Layers className="w-4 h-4 text-[#35D6E8]" />
-                <span>Technical Capabilities</span>
+                <span>Architectural Capabilities</span>
                 <ArrowRight className="w-4 h-4" />
               </a>
 

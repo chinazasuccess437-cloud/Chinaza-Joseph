@@ -23,9 +23,6 @@ export function TestimonialsSection() {
     deletePerspective,
   } = usePerspectives();
 
-  const isPortfolioAdmin =
-    Boolean(user?.emailVerified) && user?.email === 'chinazajoseph952@gmail.com';
-
   return (
     <section
       id="endorsements"
@@ -95,8 +92,7 @@ export function TestimonialsSection() {
         {!perspectivesLoading && perspectives.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {perspectives.map((item) => {
-              const canDelete =
-                Boolean(user) && (user?.uid === item.authorUid || isPortfolioAdmin);
+              const canDelete = Boolean(user) && user?.uid === item.authorUid;
 
               return (
                 <article

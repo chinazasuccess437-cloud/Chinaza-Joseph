@@ -27,10 +27,6 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.email_verified == true;
     }
 
-    function isAdmin() {
-      return isVerifiedUser() && request.auth.token.email == 'chinazajoseph952@gmail.com';
-    }
-
     function isValidPhotoUrl(url) {
       return url is string &&
         url.size() >= 10 &&
@@ -97,7 +93,7 @@ service cloud.firestore {
       allow update: if isVerifiedUser() &&
         isValidId(perspectiveId) &&
         isValidPerspectiveUpdate(incoming(), existing()) &&
-        (existing().authorUid == request.auth.uid || isAdmin()) &&
+        existing().authorUid == request.auth.uid &&
         incoming().diff(existing()).affectedKeys().hasOnly([
           'authorName',
           'authorRole',
@@ -108,7 +104,7 @@ service cloud.firestore {
 
       allow delete: if isVerifiedUser() &&
         isValidId(perspectiveId) &&
-        (existing().authorUid == request.auth.uid || isAdmin());
+        existing().authorUid == request.auth.uid;
     }
   }
 }

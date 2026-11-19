@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
-import { Building2, Globe2, Shield, Users } from 'lucide-react';
+import { Building2, ExternalLink, Globe2, Shield, Users } from 'lucide-react';
 import chinazaPortrait from '../assets/images/chinaza-portrait.jpg';
 import ikennaPortrait from '../assets/images/ikenna-joseph.jpg';
 import alexPortrait from '../assets/images/alexander-kapitulsky.jpg';
@@ -8,6 +8,7 @@ import richPortrait from '../assets/images/rich.jpg';
 import yigitPortrait from '../assets/images/yigit-emir.jpg';
 import jamesPortrait from '../assets/images/james-freeborn.png';
 import chiomaPortrait from '../assets/images/chioma-joseph.jpg';
+import emmanuelPortrait from '../assets/images/emmanuel-bempong.jpg';
 import {
   CORE_ENGINEERING_MEMBERS,
   EXECUTIVE_LEADERSHIP,
@@ -47,7 +48,7 @@ const PERSON_PHOTOS: Record<string, PhotoConfig> = {
     fallback: '/assets/aistudio/1795028434426_9d662ac8.jpg',
     positionClass: 'object-[50%_24%]',
   },
-  'Yiğit Emir': {
+  'Yiğit Emir Karadağ': {
     primary: yigitPortrait,
     fallback: '/assets/aistudio/IMG_20261118_195118_965ba558.jpg',
     positionClass: 'object-top scale-[1.15] origin-top',
@@ -56,6 +57,11 @@ const PERSON_PHOTOS: Record<string, PhotoConfig> = {
     primary: jamesPortrait,
     fallback: '/assets/aistudio/image_d4f77cdd.png',
     positionClass: 'object-[50%_20%]',
+  },
+  'Emmanuel Bempong': {
+    primary: emmanuelPortrait,
+    fallback: '/assets/aistudio/IMG-20261102-WA0015_423c2536.jpg',
+    positionClass: 'object-[50%_62%] scale-[2.25] origin-[58%_57%]',
   },
 };
 
@@ -206,7 +212,7 @@ export function TeamCollaborationsSection() {
                 <ProfileAvatar
                   name={member.name}
                   initials={member.initials}
-                  sizeClass="w-12 h-12 rounded-xl"
+                  sizeClass="w-14 h-14 rounded-2xl"
                   accentBorderClass="border-[#35D6E8]/30"
                   initialsColorClass="text-[#35D6E8]"
                 />
@@ -291,22 +297,42 @@ export function TeamCollaborationsSection() {
                 transition={{ duration: 0.45, delay: idx * 0.05 }}
                 className="living-glass rounded-3xl p-6 sm:p-7 space-y-4 hover:border-[#35D6E8]/35 transition-colors"
               >
-                <div className="flex items-center gap-4">
-                  <ProfileAvatar
-                    name={person.name}
-                    initials={person.initials}
-                    sizeClass="w-15 h-15 rounded-2xl"
-                    accentBorderClass="border-[#8B70FF]/35"
-                    initialsColorClass="text-[#B8C5D6]"
-                  />
-                  <div className="space-y-1">
-                    <h3 className="font-display text-lg font-bold text-[#F1F5F9]">
-                      {person.name}
-                    </h3>
-                    <p className="text-xs font-medium text-[#35D6E8]">
-                      {person.classification}
-                    </p>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <ProfileAvatar
+                      name={person.name}
+                      initials={person.initials}
+                      sizeClass="w-15 h-15 rounded-2xl"
+                      accentBorderClass="border-[#8B70FF]/35"
+                      initialsColorClass="text-[#B8C5D6]"
+                    />
+                    <div className="space-y-1">
+                      <h3 className="font-display text-lg font-bold text-[#F1F5F9]">
+                        {person.name}
+                      </h3>
+                      <p className="text-xs font-medium text-[#35D6E8]">
+                        {person.classification}
+                      </p>
+                      {person.building && (
+                        <p className="text-xs font-medium text-[#C9D6E6]">
+                          Building: <span className="text-[#F1F5F9]">{person.building}</span>
+                        </p>
+                      )}
+                    </div>
                   </div>
+
+                  {person.linkedinUrl && (
+                    <a
+                      href={person.linkedinUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`${person.name} on LinkedIn`}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#B8C5D6]/20 bg-[#090D14]/80 text-xs font-medium text-[#D4DFEC] hover:border-[#35D6E8]/55 hover:text-[#35D6E8] transition-colors shrink-0"
+                    >
+                      <span>LinkedIn</span>
+                      <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
+                    </a>
+                  )}
                 </div>
 
                 <p className="text-sm text-[#D4DFEC] leading-relaxed pt-3 border-t border-[#B8C5D6]/14">

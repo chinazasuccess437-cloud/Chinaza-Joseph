@@ -81,6 +81,7 @@ export function ContactFooterSection() {
     submitPerspective,
   } = usePerspectives();
 
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [authorName, setAuthorName] = useState('');
   const [authorRole, setAuthorRole] = useState('');
@@ -120,7 +121,7 @@ export function ContactFooterSection() {
 
     if (!photoDataUrl) {
       setFormError(
-        'Your picture is compulsory before submitting—please upload your photo (or attach your Google profile photo) so people can see who shared this perspective.'
+        'A photo captured from your camera or uploaded from your device is compulsory before submitting so visitors can see who shared this perspective.'
       );
       return;
     }
@@ -295,18 +296,30 @@ export function ContactFooterSection() {
 
                     <div className="flex-1 space-y-2">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-semibold text-[#F1F5F9]">
-                          Your Picture
-                        </span>
+                        <label
+                          htmlFor="perspective-photo-camera"
+                          className="text-sm font-semibold text-[#F1F5F9]"
+                        >
+                          Capture Your Photo
+                        </label>
                         <span className="text-xs font-semibold text-[#35D6E8]">
                           (Required)
                         </span>
                       </div>
                       <p className="text-xs sm:text-sm text-[#D4DFEC] leading-relaxed">
-                        Please upload your picture so when you share your perspective, visitors can see who you are.
+                        Take a photo using your device camera (or choose an image file) so your picture is saved and displayed beside your perspective.
                       </p>
 
                       <div className="flex flex-wrap items-center gap-3 pt-1">
+                        <input
+                          ref={cameraInputRef}
+                          type="file"
+                          accept="image/*"
+                          capture="user"
+                          onChange={handlePhotoUpload}
+                          className="sr-only"
+                          id="perspective-photo-camera"
+                        />
                         <input
                           ref={fileInputRef}
                           type="file"
@@ -317,30 +330,27 @@ export function ContactFooterSection() {
                         />
                         <button
                           type="button"
-                          onClick={() => fileInputRef.current?.click()}
+                          onClick={() => cameraInputRef.current?.click()}
                           disabled={photoLoading}
                           className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#35D6E8] hover:bg-[#5ce1f0] text-[#090D14] text-xs font-semibold transition-colors cursor-pointer"
                         >
                           {photoLoading ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
                           ) : (
-                            <Upload className="w-3.5 h-3.5" />
+                            <Camera className="w-3.5 h-3.5" />
                           )}
-                          <span>{photoDataUrl ? 'Change Picture' : 'Upload Your Picture'}</span>
+                          <span>{photoDataUrl ? 'Retake Camera Photo' : 'Take Camera Photo'}</span>
                         </button>
 
-                        {user.photoURL && photoDataUrl !== user.photoURL && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setPhotoDataUrl(user.photoURL ?? '');
-                              setFormError('');
-                            }}
-                            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-[#B8C5D6]/25 bg-[#090D14] text-xs font-medium text-[#D4DFEC] hover:border-[#35D6E8]/50 hover:text-[#35D6E8] transition-colors cursor-pointer"
-                          >
-                            Use Google Profile Photo
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={photoLoading}
+                          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-[#B8C5D6]/25 bg-[#090D14] text-xs font-medium text-[#D4DFEC] hover:border-[#35D6E8]/50 hover:text-[#35D6E8] transition-colors cursor-pointer"
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>{photoDataUrl ? 'Replace from Device' : 'Choose Image File'}</span>
+                        </button>
                       </div>
                     </div>
                   </div>

@@ -1,7 +1,12 @@
 import { useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import { ArrowRight, CheckCircle2, Cpu, GraduationCap, MapPin, ShieldCheck } from 'lucide-react';
-import { EDUCATION_LIST, EXPERTISE_LIST, METHODOLOGY_STAGES } from '../data/portfolioData';
+import {
+  AUDIENCE_VALUE_PROPOSITIONS,
+  EDUCATION_LIST,
+  EXPERTISE_LIST,
+  METHODOLOGY_STAGES,
+} from '../data/portfolioData';
 
 export function AboutMethodologySection() {
   const prefersReducedMotion = useReducedMotion();
@@ -109,6 +114,26 @@ export function AboutMethodologySection() {
               </a>
             </div>
           </motion.div>
+        </div>
+
+        {/* Audience Alignment Strip */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {AUDIENCE_VALUE_PROPOSITIONS.map((item) => (
+            <div
+              key={item.audience}
+              className="living-glass rounded-2xl p-6 space-y-2.5 hover:border-[#35D6E8]/35 transition-colors"
+            >
+              <div className="text-xs font-semibold text-[#35D6E8] tracking-wide">
+                {item.audience}
+              </div>
+              <h3 className="font-display text-base font-bold text-[#F1F5F9]">
+                {item.focus}
+              </h3>
+              <p className="text-sm text-[#D4DFEC] leading-relaxed">
+                {item.summary}
+              </p>
+            </div>
+          ))}
         </div>
 
         {/* 7-Stage Interactive Working Methodology */}

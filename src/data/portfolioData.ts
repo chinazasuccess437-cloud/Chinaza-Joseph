@@ -62,7 +62,15 @@ export interface NetworkProfile {
   name: string;
   initials: string;
   classification: string;
+  building?: string;
+  linkedinUrl?: string;
   description: string;
+}
+
+export interface AudienceValueItem {
+  audience: string;
+  focus: string;
+  summary: string;
 }
 
 export interface FaqItem {
@@ -78,14 +86,16 @@ export const HERO_PROFILE = {
   title: 'Founder & Lead Systems Architect',
   positioningRoles: [
     'Founder & Lead Systems Architect',
-    'Advanced AI Prompt Architect',
-    'Multi-Model Orchestration Architect',
-    'AI Systems & Application Architect',
-    'Human-in-the-Loop (HITL) Systems Design',
+    'AI Systems Architecture',
+    'Advanced AI Prompt Architecture',
+    'Multi-Model Orchestration',
+    'Human-in-the-Loop (HITL) Systems',
+    'AI-Driven Product Architecture & Technical Problem-Solving',
   ],
-  focusLine: 'Advanced AI Prompt Architecture · Multi-Model Orchestration · HITL Systems Design',
+  focusLine:
+    'AI Systems Architecture · Advanced AI Prompt Architecture · Multi-Model Orchestration · HITL Systems',
   intro:
-    'I architect intelligent systems, orchestrate multiple AI models, design resilient applications and transform complex technical ideas into working products.',
+    'I architect intelligent AI systems, coordinate multi-model orchestration pipelines with Human-in-the-Loop accountability, and translate complex technical problems into working, resilient software products.',
   company: 'CHIXUS Systems',
   mailtoHref: 'mailto:chinazajoseph952@gmail.com',
   socials: [
@@ -113,14 +123,35 @@ export const HERO_PROFILE = {
 };
 
 export const EXPERTISE_LIST: string[] = [
+  'AI Systems Architecture & Integration',
   'Advanced AI Prompt Architecture',
   'Multi-Model Orchestration',
   'Human-in-the-Loop (HITL) Architecture',
-  'AI Systems Architecture & Integration',
+  'AI-Driven Product Architecture & Technical Problem-Solving',
   'Full-Stack Web Application Development',
   'Backend Systems & API Architecture',
   'Offline-Capable Application Architecture',
-  'Product Architecture & Technical Direction',
+];
+
+export const AUDIENCE_VALUE_PROPOSITIONS: AudienceValueItem[] = [
+  {
+    audience: 'For Investors & Venture Evaluators',
+    focus: 'Execution Clarity & Stage Honesty',
+    summary:
+      'Separates live platforms (CHIXUS, Looma) from active builds (Gloweave) and architectural systems (Qorvex, ShopSpurt™)—pairing founder product direction with disciplined scope and clear problem framing.',
+  },
+  {
+    audience: 'For Hiring Managers & Engineering Leads',
+    focus: 'Systems Ownership Beyond Code Generation',
+    summary:
+      'Brings architecture-first rigor across AI prompt hierarchies, Multi-Model Orchestration, Human-in-the-Loop verification gates, full-stack web delivery, and resilient API boundaries.',
+  },
+  {
+    audience: 'For Clients, Founders & Collaborators',
+    focus: 'Structured Technical Problem-Solving',
+    summary:
+      'Applies a seven-stage engineering workflow to transform ambiguous product challenges into deterministic system topologies, schema-enforced AI workflows, and responsive web applications.',
+  },
 ];
 
 export const EDUCATION_LIST: EducationEntry[] = [
@@ -528,6 +559,7 @@ export const PROFESSIONAL_NETWORK: NetworkProfile[] = [
     name: 'Alexander Kapitulsky',
     initials: 'AK',
     classification: 'Professional Connection & Product Testing Contact',
+    linkedinUrl: 'https://www.linkedin.com/in/kapitulsky',
     description:
       'Discussions around AI systems architecture, human oversight and workflow design, alongside BeepToolkit product testing and feedback.',
   },
@@ -539,9 +571,11 @@ export const PROFESSIONAL_NETWORK: NetworkProfile[] = [
       "Provides informal technical guidance, product strategy discussions and entrepreneurial perspectives, including feedback on CHIXUS's technical direction and MVP approach.",
   },
   {
-    name: 'Yiğit Emir',
-    initials: 'YE',
-    classification: 'Professional Connection',
+    name: 'Yiğit Emir Karadağ',
+    initials: 'YEK',
+    classification: 'Co-Founder & CTO of Clarantica',
+    building: 'Tempest',
+    linkedinUrl: 'https://www.linkedin.com/in/yigit-emir',
     description:
       'Exchanges ideas about product growth, feedback and respective products. He has also reviewed CHIXUS and complimented its UI.',
   },
