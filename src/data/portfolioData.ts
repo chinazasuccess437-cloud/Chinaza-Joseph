@@ -58,6 +58,14 @@ export interface ExecutiveProfile {
   hasPortrait?: boolean;
 }
 
+export interface CoreMemberProfile {
+  name: string;
+  initials: string;
+  role: string;
+  summary: string;
+  linkedinUrl?: string;
+}
+
 export interface NetworkProfile {
   name: string;
   initials: string;
@@ -532,7 +540,7 @@ export const TEAM_ATTRIBUTIONS = [
   },
 ];
 
-export const CORE_ENGINEERING_MEMBERS = [
+export const CORE_ENGINEERING_MEMBERS: CoreMemberProfile[] = [
   {
     name: 'Stephen Oni',
     initials: 'SO',
@@ -544,6 +552,7 @@ export const CORE_ENGINEERING_MEMBERS = [
     initials: 'EB',
     role: 'Gloweave Development Team',
     summary: 'Collaborating with Chinaza Joseph on the Gloweave platform.',
+    linkedinUrl: 'https://www.linkedin.com/in/emmanuel-bempong-83813422b',
   },
 ];
 

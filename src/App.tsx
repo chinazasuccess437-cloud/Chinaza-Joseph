@@ -10,10 +10,12 @@ import { FAQSection } from './components/FAQSection';
 import { ContactFooterSection } from './components/ContactFooterSection';
 import { PerspectivesProvider } from './context/PerspectivesContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { InitialLoadingSplash } from './components/InitialLoadingSplash';
 
 export default function App() {
   return (
     <ErrorBoundary>
+      <InitialLoadingSplash />
       <PerspectivesProvider>
         <div className="relative min-h-screen bg-[#090D14] text-[#F1F5F9] overflow-x-clip">
           <a

@@ -10,7 +10,7 @@ Verified facts you must strictly adhere to:
 - Roles: Founder & Lead Systems Architect, AI Systems Architecture, Advanced AI Prompt Architecture, Multi-Model Orchestration, Human-in-the-Loop (HITL) Systems, AI-Driven Product Architecture & Technical Problem-Solving. Always use "Founder & Lead Systems Architect" and "Multi-Model Orchestration" verbatim.
 - Education: Corner Stone Preparation School (C.S.P.S) in Benin City; Ekwe Secondary School in Imo state (never invent dates or awards).
 - Executive Leadership at CHIXUS Systems: Ikenna Joseph (CEO, Senior Technical Manager), Chioma Joseph (COO, Operations & Logistics Specialist), Chinaza Success Joseph (Founder & Lead Systems Architect).
-- Core Engineering Collaborators: Stephen Oni (CHIXUS Development Team — co-building CHIXUS), Emmanuel Bempong (Gloweave Development Team — co-building Gloweave).
+- Core Engineering Collaborators: Stephen Oni (CHIXUS Development Team — co-building CHIXUS), Emmanuel Bempong (Gloweave Development Team — co-building Gloweave; LinkedIn: https://www.linkedin.com/in/emmanuel-bempong-83813422b).
 - Professional Network:
   - James Freeborn (Professional Connection — technical exchanges around software development, engineering, and AI systems)
   - Alexander Kapitulsky (Professional Connection & Product Testing Contact — AI systems architecture, human oversight, workflow design, and BeepToolkit testing; LinkedIn: https://www.linkedin.com/in/kapitulsky)
@@ -48,19 +48,44 @@ function cleanEnvKey(raw: string | undefined): string {
   ) {
     val = val.slice(1, -1).trim();
   }
+  // Strip accidental "KEY_NAME=" or "Bearer " prefix if pasted into a secret field
+  val = val.replace(/^(GEMINI_API_KEY|CHINAZA_API_KEY|GOOGLE_API_KEY)\s*=\s*/i, '').trim();
+  val = val.replace(/^Bearer\s+/i, '').trim();
+  if (
+    val.length >= 2 &&
+    ((val.startsWith('"') && val.endsWith('"')) ||
+      (val.startsWith("'") && val.endsWith("'")))
+  ) {
+    val = val.slice(1, -1).trim();
+  }
   return val;
 }
 
-export function resolveGeminiApiKey(): string {
-  const raw =
-    process.env.GEMINI_API_KEY !== undefined
-      ? process.env.GEMINI_API_KEY
-      : process.env.CHINAZA_API_KEY;
-  const apiKey = cleanEnvKey(raw);
-  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') {
-    return '';
+function getOrderedCandidateKeys(): string[] {
+  const rawCandidates = [
+    process.env.CHINAZA_API_KEY,
+    process.env.GEMINI_API_KEY,
+    process.env.GOOGLE_API_KEY,
+  ];
+  const cleaned = rawCandidates
+    .map(cleanEnvKey)
+    .filter((k) => Boolean(k) && k !== 'MY_GEMINI_API_KEY');
+
+  const unique: string[] = [];
+  for (const key of cleaned) {
+    if (!unique.includes(key)) unique.push(key);
   }
-  return apiKey;
+
+  // Always prefer standard AIza... keys first so an invalid platform AQ. token never blocks a valid CHINAZA_API_KEY
+  return unique.sort((a, b) => {
+    const aIsAiza = a.startsWith('AIza') ? 0 : 1;
+    const bIsAiza = b.startsWith('AIza') ? 0 : 1;
+    return aIsAiza - bIsAiza;
+  });
+}
+
+export function resolveGeminiApiKey(): string {
+  return getOrderedCandidateKeys()[0] ?? '';
 }
 
 export function resolveChinazaFallbackKey(): string {
@@ -126,32 +151,31 @@ async function runWithKey(
 async function runWithGeminiClient<T>(
   operation: (ai: GoogleGenAI) => Promise<T>
 ): Promise<T> {
-  const primaryKey = resolveGeminiApiKey();
-  const chinazaKey = resolveChinazaFallbackKey();
-
-  if (!primaryKey) {
+  const candidates = getOrderedCandidateKeys();
+  if (candidates.length === 0) {
     throw new Error('GEMINI_API_KEY_MISSING');
   }
 
-  try {
-    return (await runWithKey(primaryKey, operation)) as T;
-  } catch (err) {
-    const rawMsg = err instanceof Error ? err.message : String(err);
-    const canTryChinazaFallback =
-      Boolean(chinazaKey) &&
-      chinazaKey !== primaryKey &&
-      (rawMsg.includes('UNAUTHENTICATED') ||
+  let lastError: unknown;
+  for (const key of candidates) {
+    try {
+      return (await runWithKey(key, operation)) as T;
+    } catch (err) {
+      lastError = err;
+      const rawMsg = err instanceof Error ? err.message : String(err);
+      const isAuthFailure =
+        rawMsg.includes('UNAUTHENTICATED') ||
         rawMsg.includes('PERMISSION_DENIED') ||
         rawMsg.includes('API_KEY_INVALID') ||
         rawMsg.includes('ACCESS_TOKEN_TYPE_UNSUPPORTED') ||
         rawMsg.includes('"code":401') ||
-        rawMsg.includes('"code":403'));
-
-    if (canTryChinazaFallback) {
-      return (await runWithKey(chinazaKey, operation)) as T;
+        rawMsg.includes('"code":403');
+      if (!isAuthFailure) {
+        throw err;
+      }
     }
-    throw err;
   }
+  throw lastError;
 }
 
 function extractReadableMessage(raw: string): string {
@@ -287,6 +311,57 @@ export async function processBriefingRequest(rawBody: unknown): Promise<JsonResu
   }
 }
 
+async function synthesizeMaleSpeech(text: string): Promise<{
+  audioBase64?: string;
+  audioMimeType?: string;
+}> {
+  const clean = text.trim();
+  if (!clean) return {};
+
+  try {
+    const ttsResponse = await runWithGeminiClient((ai) =>
+      ai.models.generateContent({
+        model: 'gemini-3.8-flash-lite-tts',
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                text: clean,
+                speechMetadata: {
+                  style: 'Calm, confident male systems architect in a live discussion',
+                },
+              },
+            ],
+          },
+        ],
+        config: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            voiceConfig: {
+              // Deep, clear male Gemini voice
+              prebuiltVoiceConfig: { voiceName: 'Charon' },
+            },
+          },
+        },
+      })
+    );
+
+    const inlineAudio =
+      ttsResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+    if (inlineAudio?.data) {
+      return {
+        audioBase64: inlineAudio.data,
+        audioMimeType: inlineAudio.mimeType || 'audio/wav',
+      };
+    }
+  } catch {
+    // Gracefully fall back to client male voice synthesis if TTS quota or tier limits occur
+  }
+
+  return {};
+}
+
 export async function processVoiceTurnRequest(rawBody: unknown): Promise<JsonResult> {
   try {
     const body =
@@ -295,16 +370,17 @@ export async function processVoiceTurnRequest(rawBody: unknown): Promise<JsonRes
     const textInput = typeof body.text === 'string' ? body.text.trim() : '';
     const audioBase64 = typeof body.audioBase64 === 'string' ? body.audioBase64.trim() : '';
     const rawMime = typeof body.mimeType === 'string' ? body.mimeType.trim() : '';
-    const mimeType = rawMime.startsWith('audio/') ? rawMime.split(';')[0] : 'audio/webm';
+    const mimeType = rawMime.startsWith('audio/') ? rawMime.split(';')[0] : 'audio/wav';
     const rawHistory = typeof body.history === 'string' ? body.history.trim() : '';
+    const wantTts = body.preferGeminiVoice !== false;
     const historyText = rawHistory
-      ? `Recent conversation:\n${rawHistory.slice(0, 1200)}\n\n`
+      ? `Recent live discussion:\n${rawHistory.slice(0, 1400)}\n\n`
       : '';
 
     if (!textInput && !audioBase64) {
       return {
         status: 400,
-        body: { error: 'Please speak a question or enter text.' },
+        body: { error: 'Please speak or enter a message to continue the discussion.' },
       };
     }
 
@@ -312,20 +388,31 @@ export async function processVoiceTurnRequest(rawBody: unknown): Promise<JsonRes
       const response = await runWithGeminiClient((ai) =>
         ai.models.generateContent({
           model: GEMINI_FREE_MODEL,
-          contents: `${historyText}Visitor asked: ${textInput}`,
+          contents: `${historyText}Visitor said: ${textInput}`,
           config: {
             systemInstruction:
               PORTFOLIO_GROUNDING_CONTEXT +
-              '\n\nRespond naturally as in a spoken architectural conversation, in 2 to 4 crisp sentences without markdown bullets.',
+              '\n\nYou are speaking as a knowledgeable male architectural representative in a live two-way voice discussion about Chinaza Joseph. Respond naturally, directly, and conversationally in 2 to 3 crisp spoken sentences with plain text (no markdown, no asterisks, no bullet points), inviting natural follow-up.',
           },
         })
       );
+
+      const answerText = (response.text ?? '').trim();
+      const tts = wantTts ? await synthesizeMaleSpeech(answerText) : {};
 
       return {
         status: 200,
         body: {
           transcript: textInput,
-          answer: (response.text ?? '').trim(),
+          answer: answerText,
+          noSpeech: false,
+          ...(tts.audioBase64
+            ? {
+                audioBase64: tts.audioBase64,
+                audioMimeType: tts.audioMimeType,
+                voiceName: 'Charon',
+              }
+            : {}),
         },
       };
     }
@@ -342,7 +429,7 @@ export async function processVoiceTurnRequest(rawBody: unknown): Promise<JsonRes
               },
             },
             {
-              text: `${historyText}Listen carefully to the visitor's audio clip. If there is no clear spoken human speech or only silence/noise, set "transcript" to "" and "answer" to "No clear speech was detected. Please tap Speak Question and ask your question clearly." Otherwise transcribe the exact question in "transcript" and answer concisely in "answer" (2 to 4 crisp sentences, plain text without markdown bullets).`,
+              text: `${historyText}Listen carefully to the visitor's spoken clip in this live discussion. If there is no clear spoken human speech or only ambient noise/silence, set "transcript" to "" and "answer" to "". Otherwise transcribe what the visitor said accurately in "transcript" and reply in "answer" as a knowledgeable male architectural representative in a live voice discussion (2 to 3 natural conversational sentences, plain text only, no markdown or bullet lists).`,
             },
           ],
         },
@@ -354,11 +441,11 @@ export async function processVoiceTurnRequest(rawBody: unknown): Promise<JsonRes
             properties: {
               transcript: {
                 type: Type.STRING,
-                description: 'Exact short transcription of what the visitor asked.',
+                description: 'Exact short transcription of what the visitor said, or empty string if silence/noise.',
               },
               answer: {
                 type: Type.STRING,
-                description: 'Concise spoken-style answer grounded in Chinaza Joseph portfolio facts.',
+                description: 'Concise spoken conversational answer in plain text, or empty string if no speech.',
               },
             },
             required: ['transcript', 'answer'],
@@ -372,14 +459,38 @@ export async function processVoiceTurnRequest(rawBody: unknown): Promise<JsonRes
     try {
       parsed = JSON.parse(rawText) as { transcript?: string; answer?: string };
     } catch {
-      parsed = { transcript: 'Voice question', answer: rawText };
+      parsed = { transcript: 'Voice turn', answer: rawText };
     }
+
+    const transcriptText = parsed.transcript?.trim() || '';
+    const answerText = parsed.answer?.trim() || '';
+
+    if (!transcriptText) {
+      return {
+        status: 200,
+        body: {
+          transcript: '',
+          answer: '',
+          noSpeech: true,
+        },
+      };
+    }
+
+    const tts = wantTts && answerText ? await synthesizeMaleSpeech(answerText) : {};
 
     return {
       status: 200,
       body: {
-        transcript: parsed.transcript?.trim() || 'Voice question',
-        answer: parsed.answer?.trim() || '',
+        transcript: transcriptText,
+        answer: answerText,
+        noSpeech: false,
+        ...(tts.audioBase64
+          ? {
+              audioBase64: tts.audioBase64,
+              audioMimeType: tts.audioMimeType,
+              voiceName: 'Charon',
+            }
+          : {}),
       },
     };
   } catch (err) {

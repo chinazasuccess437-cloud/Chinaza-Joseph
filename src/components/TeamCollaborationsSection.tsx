@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
-import { Building2, ExternalLink, Globe2, Shield, Users } from 'lucide-react';
+import { Building2, Globe2, Shield, Users } from 'lucide-react';
 import chinazaPortrait from '../assets/images/chinaza-portrait.jpg';
 import ikennaPortrait from '../assets/images/ikenna-joseph.jpg';
 import alexPortrait from '../assets/images/alexander-kapitulsky.jpg';
@@ -20,6 +20,14 @@ interface PhotoConfig {
   primary: string;
   fallback: string;
   positionClass: string;
+}
+
+function LinkedInIcon({ className = 'w-[18px] h-[18px]' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={`${className} fill-current`} aria-hidden="true">
+      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+    </svg>
+  );
 }
 
 const PERSON_PHOTOS: Record<string, PhotoConfig> = {
@@ -216,11 +224,27 @@ export function TeamCollaborationsSection() {
                   accentBorderClass="border-[#35D6E8]/30"
                   initialsColorClass="text-[#35D6E8]"
                 />
-                <div className="space-y-1">
-                  <div className="font-display text-base font-bold text-[#F1F5F9]">
-                    {member.name}
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <div className="font-display text-base font-bold text-[#F1F5F9]">
+                        {member.name}
+                      </div>
+                      <div className="text-xs font-medium text-[#35D6E8]">{member.role}</div>
+                    </div>
+                    {member.linkedinUrl && (
+                      <a
+                        href={member.linkedinUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`${member.name} on LinkedIn`}
+                        title={`${member.name} on LinkedIn`}
+                        className="w-10 h-10 rounded-xl border border-[#B8C5D6]/20 bg-[#090D14]/80 text-[#D4DFEC] hover:border-[#35D6E8]/55 hover:text-[#35D6E8] flex items-center justify-center transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#35D6E8]"
+                      >
+                        <LinkedInIcon className="w-[18px] h-[18px]" />
+                      </a>
+                    )}
                   </div>
-                  <div className="text-xs font-medium text-[#35D6E8]">{member.role}</div>
                   <p className="text-sm text-[#D4DFEC] leading-relaxed">{member.summary}</p>
                 </div>
               </div>
@@ -327,10 +351,10 @@ export function TeamCollaborationsSection() {
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-label={`${person.name} on LinkedIn`}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#B8C5D6]/20 bg-[#090D14]/80 text-xs font-medium text-[#D4DFEC] hover:border-[#35D6E8]/55 hover:text-[#35D6E8] transition-colors shrink-0"
+                      title={`${person.name} on LinkedIn`}
+                      className="w-10 h-10 rounded-xl border border-[#B8C5D6]/20 bg-[#090D14]/80 text-[#D4DFEC] hover:border-[#35D6E8]/55 hover:text-[#35D6E8] flex items-center justify-center transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#35D6E8]"
                     >
-                      <span>LinkedIn</span>
-                      <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
+                      <LinkedInIcon className="w-[18px] h-[18px]" />
                     </a>
                   )}
                 </div>

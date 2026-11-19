@@ -1,21 +1,32 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
-  Loader2,
   MessageSquare,
   Mic,
+  PhoneOff,
+  Radio,
   Send,
-  Square,
   Volume2,
   VolumeX,
 } from 'lucide-react';
+import { BrandLoaderIcon } from './BrandLoaderIcon';
 
 type ConsoleMode = 'voice' | 'ask';
+type LivePhase = 'idle' | 'listening' | 'hearing' | 'thinking' | 'speaking';
 
 interface ConversationEntry {
   id: string;
-  speaker: 'You' | 'Architect Briefing';
+  speaker: 'You' | 'Male Architectural Voice';
   text: string;
+}
+
+interface VoiceTurnResponse {
+  transcript?: string;
+  answer?: string;
+  noSpeech?: boolean;
+  audioBase64?: string;
+  audioMimeType?: string;
+  voiceName?: string;
 }
 
 const BRIEFING_PRESETS = [
@@ -24,17 +35,103 @@ const BRIEFING_PRESETS = [
   'How does HITL verification govern Gloweave?',
 ];
 
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('Failed to encode audio recording.'));
-    reader.onloadend = () => {
-      const result = String(reader.result || '');
-      const commaIdx = result.indexOf(',');
-      resolve(commaIdx >= 0 ? result.slice(commaIdx + 1) : result);
-    };
-    reader.readAsDataURL(blob);
-  });
+const PREFERRED_MALE_VOICES = [
+  'google uk english male',
+  'microsoft guy',
+  'microsoft ryan',
+  'microsoft mark',
+  'microsoft david',
+  'microsoft george',
+  'daniel',
+  'alex',
+  'arthur',
+  'oliver',
+  'liam',
+  'aaron',
+  'fred',
+  'male',
+];
+
+const FEMALE_VOICE_HINTS = [
+  'female',
+  'zira',
+  'samantha',
+  'victoria',
+  'karen',
+  'fiona',
+  'serena',
+  'tessa',
+  'susan',
+  'hazel',
+  'libby',
+  'sonia',
+  'aria',
+  'jenny',
+  'clara',
+  'moira',
+  'veena',
+];
+
+function selectMaleBrowserVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
+  if (!voices.length) return null;
+  const englishVoices = voices.filter((v) => v.lang.toLowerCase().startsWith('en'));
+  const pool = englishVoices.length > 0 ? englishVoices : voices;
+
+  for (const hint of PREFERRED_MALE_VOICES) {
+    const match = pool.find((v) => {
+      const name = v.name.toLowerCase();
+      return name.includes(hint) && !FEMALE_VOICE_HINTS.some((f) => name.includes(f));
+    });
+    if (match) return match;
+  }
+
+  const nonFemale = pool.find(
+    (v) => !FEMALE_VOICE_HINTS.some((f) => v.name.toLowerCase().includes(f))
+  );
+  return nonFemale || pool[0] || null;
+}
+
+function encodeMonoWavBase64(chunks: Float32Array[], sampleRate: number): string {
+  const totalSamples = chunks.reduce((acc, c) => acc + c.length, 0);
+  const buffer = new ArrayBuffer(44 + totalSamples * 2);
+  const view = new DataView(buffer);
+
+  const writeStr = (offset: number, str: string) => {
+    for (let i = 0; i < str.length; i += 1) {
+      view.setUint8(offset + i, str.charCodeAt(i));
+    }
+  };
+
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + totalSamples * 2, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeStr(36, 'data');
+  view.setUint32(40, totalSamples * 2, true);
+
+  let offset = 44;
+  for (const chunk of chunks) {
+    for (let i = 0; i < chunk.length; i += 1) {
+      const clamped = Math.max(-1, Math.min(1, chunk[i]));
+      view.setInt16(offset, clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff, true);
+      offset += 2;
+    }
+  }
+
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  const step = 0x8000;
+  for (let i = 0; i < bytes.length; i += step) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + step));
+  }
+  return btoa(binary);
 }
 
 async function parseApiJson<T>(res: Response, fallbackError: string): Promise<T> {
@@ -66,11 +163,12 @@ async function parseApiJson<T>(res: Response, fallbackError: string): Promise<T>
 export function SystemsIntelligenceConsole() {
   const [mode, setMode] = useState<ConsoleMode>('voice');
 
-  // Voice conversation state
-  const [recording, setRecording] = useState(false);
-  const [voiceProcessing, setVoiceProcessing] = useState(false);
+  // Live hands-free discussion state
+  const [discussionActive, setDiscussionActive] = useState(false);
+  const [livePhase, setLivePhase] = useState<LivePhase>('idle');
+  const [micLevel, setMicLevel] = useState(0);
   const [speakReplies, setSpeakReplies] = useState(true);
-  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [voiceLabel, setVoiceLabel] = useState('Male Voice (Charon / Male Synth)');
   const [voiceError, setVoiceError] = useState('');
   const [conversation, setConversation] = useState<ConversationEntry[]>([]);
   const [voiceTextInput, setVoiceTextInput] = useState('');
@@ -81,108 +179,246 @@ export function SystemsIntelligenceConsole() {
   const [askAnswer, setAskAnswer] = useState('');
   const [askError, setAskError] = useState('');
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
+  // Audio & VAD refs (used inside real-time callbacks to avoid stale closures)
+  const discussionActiveRef = useRef(false);
+  const phaseRef = useRef<LivePhase>('idle');
+  const speakRepliesRef = useRef(true);
+  const conversationRef = useRef<ConversationEntry[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const playbackAudioRef = useRef<HTMLAudioElement | null>(null);
+  const maleVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
+
+  const preRollChunksRef = useRef<Float32Array[]>([]);
+  const capturedChunksRef = useRef<Float32Array[]>([]);
+  const speechStartTimeRef = useRef(0);
+  const lastSpeechTimeRef = useRef(0);
+  const isCapturingUtteranceRef = useRef(false);
+
+  const setPhase = useCallback((next: LivePhase) => {
+    phaseRef.current = next;
+    setLivePhase(next);
+  }, []);
+
+  useEffect(() => {
+    speakRepliesRef.current = speakReplies;
+  }, [speakReplies]);
+
+  useEffect(() => {
+    conversationRef.current = conversation;
+  }, [conversation]);
+
+  // Preload male browser voice list cleanly
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    const loadVoices = () => {
+      const voices = window.speechSynthesis.getVoices();
+      const picked = selectMaleBrowserVoice(voices);
+      if (picked) {
+        maleVoiceRef.current = picked;
+      }
+    };
+    loadVoices();
+    window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
+    return () => {
+      window.speechSynthesis.removeEventListener('voiceschanged', loadVoices);
+    };
+  }, []);
 
   const stopSpeechOutput = useCallback(() => {
+    if (playbackAudioRef.current) {
+      playbackAudioRef.current.pause();
+      playbackAudioRef.current.src = '';
+      playbackAudioRef.current = null;
+    }
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
-    setIsSpeaking(false);
   }, []);
 
-  const speakText = useCallback(
-    (text: string) => {
-      if (!speakReplies || !text.trim()) return;
-      if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+  const resumeListeningIfActive = useCallback(() => {
+    preRollChunksRef.current = [];
+    capturedChunksRef.current = [];
+    isCapturingUtteranceRef.current = false;
+    if (discussionActiveRef.current) {
+      setTimeout(() => {
+        if (discussionActiveRef.current) {
+          setPhase('listening');
+        }
+      }, 220);
+    } else {
+      setPhase('idle');
+    }
+  }, [setPhase]);
 
-      window.speechSynthesis.cancel();
+  const speakWithMaleVoice = useCallback(
+    (text: string, audioBase64?: string, audioMimeType?: string) => {
+      if (!speakRepliesRef.current || !text.trim()) {
+        resumeListeningIfActive();
+        return;
+      }
+
+      stopSpeechOutput();
+      setPhase('speaking');
+
+      // 1. Prefer Gemini Studio Male Voice (Charon) WAV audio when provided
+      if (audioBase64) {
+        setVoiceLabel('Male Voice: Gemini Charon');
+        const mime = audioMimeType || 'audio/wav';
+        const audio = new Audio(`data:${mime};base64,${audioBase64}`);
+        playbackAudioRef.current = audio;
+        audio.onended = () => {
+          playbackAudioRef.current = null;
+          resumeListeningIfActive();
+        };
+        audio.onerror = () => {
+          playbackAudioRef.current = null;
+          // Fall back cleanly to male browser synthesis
+          speakWithMaleVoice(text);
+        };
+        void audio.play().catch(() => {
+          playbackAudioRef.current = null;
+          speakWithMaleVoice(text);
+        });
+        return;
+      }
+
+      // 2. Fallback: Male browser SpeechSynthesis tuned to a male register
+      if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+        resumeListeningIfActive();
+        return;
+      }
+
+      const voices = window.speechSynthesis.getVoices();
+      const maleVoice = maleVoiceRef.current || selectMaleBrowserVoice(voices);
+      setVoiceLabel(
+        maleVoice ? `Male Voice: ${maleVoice.name}` : 'Male Voice (Deep Pitch)'
+      );
+
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1.02;
-      utterance.pitch = 0.96;
-      utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => setIsSpeaking(false);
+      if (maleVoice) {
+        utterance.voice = maleVoice;
+      }
+      utterance.pitch = 0.8; // Natural deeper male register
+      utterance.rate = 1.0;
+      utterance.onend = () => resumeListeningIfActive();
+      utterance.onerror = () => resumeListeningIfActive();
       window.speechSynthesis.speak(utterance);
     },
-    [speakReplies]
+    [resumeListeningIfActive, setPhase, stopSpeechOutput]
   );
+
+  const cleanupAudioPipeline = useCallback(() => {
+    if (processorRef.current) {
+      processorRef.current.disconnect();
+      processorRef.current.onaudioprocess = null;
+      processorRef.current = null;
+    }
+    if (sourceRef.current) {
+      sourceRef.current.disconnect();
+      sourceRef.current = null;
+    }
+    if (audioCtxRef.current) {
+      void audioCtxRef.current.close().catch(() => undefined);
+      audioCtxRef.current = null;
+    }
+    if (streamRef.current) {
+      for (const track of streamRef.current.getTracks()) {
+        track.stop();
+      }
+      streamRef.current = null;
+    }
+    preRollChunksRef.current = [];
+    capturedChunksRef.current = [];
+    isCapturingUtteranceRef.current = false;
+    setMicLevel(0);
+  }, []);
+
+  const endLiveDiscussion = useCallback(() => {
+    discussionActiveRef.current = false;
+    setDiscussionActive(false);
+    stopSpeechOutput();
+    cleanupAudioPipeline();
+    setPhase('idle');
+  }, [cleanupAudioPipeline, setPhase, stopSpeechOutput]);
 
   useEffect(() => {
     return () => {
-      stopSpeechOutput();
-      if (mediaStreamRef.current) {
-        for (const track of mediaStreamRef.current.getTracks()) {
-          track.stop();
-        }
-      }
+      endLiveDiscussion();
     };
-  }, [stopSpeechOutput]);
+  }, [endLiveDiscussion]);
 
-  const sendVoiceTurn = async (payload: {
-    text?: string;
-    audioBase64?: string;
-    mimeType?: string;
-  }) => {
-    setVoiceError('');
-    setVoiceProcessing(true);
+  const sendVoiceTurn = useCallback(
+    async (payload: { text?: string; audioBase64?: string; mimeType?: string }) => {
+      setVoiceError('');
+      setPhase('thinking');
 
-    try {
-      const recentHistory = conversation
-        .slice(-6)
-        .map((entry) => `${entry.speaker}: ${entry.text}`)
-        .join('\n');
+      try {
+        const recentHistory = conversationRef.current
+          .slice(-8)
+          .map((entry) => `${entry.speaker}: ${entry.text}`)
+          .join('\n');
 
-      const res = await fetch('/api/ai/voice-turn', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...payload,
-          history: recentHistory,
-        }),
-      });
+        const res = await fetch('/api/ai/voice-turn', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...payload,
+            history: recentHistory,
+            preferGeminiVoice: speakRepliesRef.current,
+          }),
+        });
 
-      const data = await parseApiJson<{
-        transcript?: string;
-        answer?: string;
-      }>(res, 'Voice conversation turn failed.');
+        const data = await parseApiJson<VoiceTurnResponse>(
+          res,
+          'Live discussion turn failed.'
+        );
 
-      const userText = data.transcript || payload.text || 'Voice question';
-      const replyText = data.answer || '';
+        if (data.noSpeech || (!data.transcript && !data.answer)) {
+          resumeListeningIfActive();
+          return;
+        }
 
-      setConversation((prev) => [
-        ...prev.slice(-10),
-        {
-          id: `${Date.now()}-u`,
-          speaker: 'You',
-          text: userText,
-        },
-        ...(replyText
-          ? [
-              {
-                id: `${Date.now()}-a`,
-                speaker: 'Architect Briefing' as const,
-                text: replyText,
-              },
-            ]
-          : []),
-      ]);
+        const userText = data.transcript || payload.text || 'Spoken turn';
+        const replyText = data.answer || '';
 
-      if (replyText) {
-        speakText(replyText);
+        setConversation((prev) => [
+          ...prev.slice(-10),
+          {
+            id: `${Date.now()}-u`,
+            speaker: 'You',
+            text: userText,
+          },
+          ...(replyText
+            ? [
+                {
+                  id: `${Date.now()}-a`,
+                  speaker: 'Male Architectural Voice' as const,
+                  text: replyText,
+                },
+              ]
+            : []),
+        ]);
+
+        if (replyText) {
+          speakWithMaleVoice(replyText, data.audioBase64, data.audioMimeType);
+        } else {
+          resumeListeningIfActive();
+        }
+      } catch (err) {
+        setVoiceError(
+          err instanceof Error ? err.message : 'Unable to complete live discussion turn.'
+        );
+        resumeListeningIfActive();
       }
-    } catch (err) {
-      setVoiceError(
-        err instanceof Error ? err.message : 'Unable to complete voice turn.'
-      );
-    } finally {
-      setVoiceProcessing(false);
-    }
-  };
+    },
+    [resumeListeningIfActive, setPhase, speakWithMaleVoice]
+  );
 
-  const startRecording = async () => {
-    if (recording || voiceProcessing) return;
+  const startLiveDiscussion = async () => {
+    if (discussionActiveRef.current) return;
     setVoiceError('');
     stopSpeechOutput();
 
@@ -192,51 +428,113 @@ export function SystemsIntelligenceConsole() {
           channelCount: 1,
           echoCancellation: true,
           noiseSuppression: true,
+          autoGainControl: true,
         },
       });
-      mediaStreamRef.current = stream;
-      chunksRef.current = [];
 
-      const preferredMime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus'
-        : MediaRecorder.isTypeSupported('audio/webm')
-          ? 'audio/webm'
-          : '';
+      streamRef.current = stream;
 
-      const recorder = preferredMime
-        ? new MediaRecorder(stream, { mimeType: preferredMime })
-        : new MediaRecorder(stream);
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const audioCtx = new AudioCtx({ sampleRate: 16000 });
+      if (audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+      }
+      audioCtxRef.current = audioCtx;
 
-      mediaRecorderRef.current = recorder;
+      const source = audioCtx.createMediaStreamSource(stream);
+      sourceRef.current = source;
 
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          chunksRef.current.push(event.data);
-        }
-      };
+      const processor = audioCtx.createScriptProcessor(2048, 1, 1);
+      processorRef.current = processor;
 
-      recorder.onstop = async () => {
-        for (const track of stream.getTracks()) {
-          track.stop();
-        }
-        mediaStreamRef.current = null;
+      // Silent gain node keeps ScriptProcessor running without mic feedback in speakers
+      const silentGain = audioCtx.createGain();
+      silentGain.gain.value = 0;
 
-        const mimeType = recorder.mimeType || 'audio/webm';
-        const blob = new Blob(chunksRef.current, { type: mimeType });
-        chunksRef.current = [];
+      source.connect(processor);
+      processor.connect(silentGain);
+      silentGain.connect(audioCtx.destination);
 
-        if (blob.size < 400) {
-          setVoiceError('Recording was too brief. Hold and speak for a second before stopping.');
+      discussionActiveRef.current = true;
+      setDiscussionActive(true);
+      setPhase('listening');
+
+      const sampleRate = audioCtx.sampleRate;
+      const maxPreRollFrames = Math.max(3, Math.round((0.45 * sampleRate) / 2048));
+      const SPEECH_THRESHOLD = 0.022;
+      const SILENCE_HANG_MS = 1200;
+      const MIN_SPEECH_MS = 450;
+      const MAX_TURN_MS = 15000;
+
+      processor.onaudioprocess = (event) => {
+        if (!discussionActiveRef.current) return;
+
+        // Ignore incoming frames while processing or speaking back to prevent speaker echo
+        const currentPhase = phaseRef.current;
+        if (currentPhase !== 'listening' && currentPhase !== 'hearing') {
+          setMicLevel(0);
           return;
         }
 
-        const audioBase64 = await blobToBase64(blob);
-        await sendVoiceTurn({ audioBase64, mimeType });
-      };
+        const input = event.inputBuffer.getChannelData(0);
+        const copy = new Float32Array(input.length);
+        copy.set(input);
 
-      recorder.start();
-      setRecording(true);
+        let sumSq = 0;
+        for (let i = 0; i < copy.length; i += 1) {
+          sumSq += copy[i] * copy[i];
+        }
+        const rms = Math.sqrt(sumSq / copy.length);
+        setMicLevel(Math.min(1, rms * 10));
+
+        const now = performance.now();
+
+        if (!isCapturingUtteranceRef.current) {
+          preRollChunksRef.current.push(copy);
+          if (preRollChunksRef.current.length > maxPreRollFrames) {
+            preRollChunksRef.current.shift();
+          }
+
+          if (rms > SPEECH_THRESHOLD) {
+            isCapturingUtteranceRef.current = true;
+            speechStartTimeRef.current = now;
+            lastSpeechTimeRef.current = now;
+            capturedChunksRef.current = [...preRollChunksRef.current];
+            preRollChunksRef.current = [];
+            setPhase('hearing');
+          }
+          return;
+        }
+
+        capturedChunksRef.current.push(copy);
+        if (rms > SPEECH_THRESHOLD * 0.78) {
+          lastSpeechTimeRef.current = now;
+        }
+
+        const silenceElapsed = now - lastSpeechTimeRef.current;
+        const turnDuration = now - speechStartTimeRef.current;
+
+        if (silenceElapsed >= SILENCE_HANG_MS || turnDuration >= MAX_TURN_MS) {
+          isCapturingUtteranceRef.current = false;
+          const chunksToSend = capturedChunksRef.current;
+          capturedChunksRef.current = [];
+
+          if (turnDuration < MIN_SPEECH_MS || chunksToSend.length === 0) {
+            setPhase('listening');
+            return;
+          }
+
+          const audioBase64 = encodeMonoWavBase64(chunksToSend, sampleRate);
+          void sendVoiceTurn({ audioBase64, mimeType: 'audio/wav' });
+        }
+      };
     } catch (err) {
+      cleanupAudioPipeline();
+      discussionActiveRef.current = false;
+      setDiscussionActive(false);
+      setPhase('idle');
       setVoiceError(
         err instanceof Error
           ? err.message
@@ -245,11 +543,15 @@ export function SystemsIntelligenceConsole() {
     }
   };
 
-  const stopRecording = () => {
-    if (!recording || !mediaRecorderRef.current) return;
-    setRecording(false);
-    if (mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
+  const interruptAndSpeak = () => {
+    stopSpeechOutput();
+    if (discussionActiveRef.current) {
+      preRollChunksRef.current = [];
+      capturedChunksRef.current = [];
+      isCapturingUtteranceRef.current = false;
+      setPhase('listening');
+    } else {
+      void startLiveDiscussion();
     }
   };
 
@@ -280,15 +582,26 @@ export function SystemsIntelligenceConsole() {
     }
   };
 
+  const statusText =
+    livePhase === 'listening'
+      ? 'Live discussion open — speak naturally anytime'
+      : livePhase === 'hearing'
+        ? 'Listening to you… pause briefly when done'
+        : livePhase === 'thinking'
+          ? 'Formulating architectural response…'
+          : livePhase === 'speaking'
+            ? 'Male voice responding live…'
+            : 'Hands-Free Live Discussion (Male Voice)';
+
   return (
     <div className="living-glass-elevated rounded-3xl p-6 sm:p-8 flex flex-col justify-between space-y-6">
       <div className="space-y-4">
         <div>
           <p className="text-xs font-medium text-[#35D6E8] tracking-wide">
-            Gemini Interactive Briefing
+            Gemini Live Voice Discussion
           </p>
           <h3 className="font-display text-xl sm:text-2xl font-bold text-[#F1F5F9]">
-            Voice Conversations &amp; Architectural Q&amp;A
+            Live Discussion &amp; Architectural Q&amp;A
           </h3>
         </div>
 
@@ -308,8 +621,8 @@ export function SystemsIntelligenceConsole() {
                 : 'text-[#C9D6E6] hover:text-[#F1F5F9]'
             }`}
           >
-            <Volume2 className="w-4 h-4 shrink-0" />
-            <span>Voice Conversation</span>
+            <Radio className="w-4 h-4 shrink-0" />
+            <span>Live Discussion</span>
           </button>
 
           <button
@@ -329,54 +642,52 @@ export function SystemsIntelligenceConsole() {
         </div>
       </div>
 
-      {/* MODE 1: FREE-TIER VOICE CONVERSATION */}
+      {/* MODE 1: HANDS-FREE LIVE MALE VOICE DISCUSSION */}
       {mode === 'voice' && (
         <div className="space-y-4">
           <p className="text-sm text-[#D4DFEC] leading-relaxed">
-            Record a spoken question or choose a prompt below to converse with Chinaza Joseph&rsquo;s Gemini-powered architectural briefing with spoken voice replies.
+            Tap <span className="text-[#F1F5F9] font-medium">Start Live Discussion</span> for a continuous, hands-free voice conversation—just speak naturally and pause when finished; replies play automatically in a natural male voice.
           </p>
 
           <div className="rounded-2xl bg-[#090D14]/90 border border-[#B8C5D6]/14 p-5 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 min-w-0">
                 <div
-                  className={`w-11 h-11 rounded-2xl flex items-center justify-center border transition-colors ${
-                    recording
+                  className={`w-11 h-11 rounded-2xl flex items-center justify-center border transition-colors shrink-0 ${
+                    livePhase === 'hearing' || livePhase === 'listening'
                       ? 'bg-[#35D6E8]/15 border-[#35D6E8]/60 text-[#35D6E8]'
-                      : 'bg-[#101722] border-[#B8C5D6]/20 text-[#B8C5D6]'
+                      : livePhase === 'speaking'
+                        ? 'bg-[#8B70FF]/15 border-[#8B70FF]/60 text-[#8B70FF]'
+                        : 'bg-[#101722] border-[#B8C5D6]/20 text-[#B8C5D6]'
                   }`}
                 >
-                  {voiceProcessing ? (
-                    <Loader2 className="w-5 h-5 animate-spin text-[#35D6E8]" />
+                  {livePhase === 'thinking' ? (
+                    <BrandLoaderIcon size="sm" />
+                  ) : livePhase === 'speaking' ? (
+                    <Volume2 className="w-5 h-5 text-[#35D6E8]" />
                   ) : (
                     <Mic className="w-5 h-5" />
                   )}
                 </div>
-                <div>
-                  <div className="text-sm font-semibold text-[#F1F5F9]">
-                    {recording
-                      ? 'Listening… tap Stop & Send when finished'
-                      : voiceProcessing
-                        ? 'Processing spoken turn…'
-                        : isSpeaking
-                          ? 'Speaking architectural reply…'
-                          : 'Ready for Voice Turn'}
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-[#F1F5F9] truncate">
+                    {statusText}
                   </div>
-                  <div className="text-xs text-[#B8C5D6]/80">
-                    Gemini Multimodal Audio + Spoken Playback
+                  <div className="text-xs text-[#B8C5D6]/80 truncate">
+                    {voiceLabel} · Auto turn-taking
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => {
                     if (speakReplies) stopSpeechOutput();
                     setSpeakReplies((prev) => !prev);
                   }}
-                  aria-label={speakReplies ? 'Mute voice replies' : 'Enable voice replies'}
-                  title={speakReplies ? 'Voice replies on' : 'Voice replies muted'}
+                  aria-label={speakReplies ? 'Mute male voice replies' : 'Enable male voice replies'}
+                  title={speakReplies ? 'Voice audio on' : 'Voice audio muted'}
                   className="p-2.5 rounded-xl border border-[#B8C5D6]/25 bg-[#101722] text-[#F1F5F9] hover:border-[#35D6E8]/55 transition-colors cursor-pointer"
                 >
                   {speakReplies ? (
@@ -386,28 +697,50 @@ export function SystemsIntelligenceConsole() {
                   )}
                 </button>
 
-                {recording ? (
+                {livePhase === 'speaking' && (
                   <button
                     type="button"
-                    onClick={stopRecording}
+                    onClick={interruptAndSpeak}
+                    className="px-3.5 py-2.5 rounded-xl border border-[#35D6E8]/45 bg-[#35D6E8]/15 text-xs font-semibold text-[#35D6E8] hover:bg-[#35D6E8] hover:text-[#090D14] transition-colors cursor-pointer"
+                  >
+                    Interrupt
+                  </button>
+                )}
+
+                {discussionActive ? (
+                  <button
+                    type="button"
+                    onClick={endLiveDiscussion}
                     className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#8B70FF]/25 hover:bg-[#8B70FF]/35 border border-[#8B70FF]/55 text-xs font-semibold text-[#F1F5F9] transition-colors cursor-pointer"
                   >
-                    <Square className="w-3.5 h-3.5 fill-current" />
-                    <span>Stop &amp; Send</span>
+                    <PhoneOff className="w-3.5 h-3.5" />
+                    <span>End Discussion</span>
                   </button>
                 ) : (
                   <button
                     type="button"
-                    disabled={voiceProcessing}
-                    onClick={() => void startRecording()}
+                    disabled={livePhase === 'thinking'}
+                    onClick={() => void startLiveDiscussion()}
                     className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#35D6E8] hover:bg-[#5ce1f0] disabled:opacity-55 text-xs font-semibold text-[#090D14] transition-all cursor-pointer shadow-[0_8px_24px_-8px_rgba(53,214,232,0.55)]"
                   >
                     <Mic className="w-4 h-4" />
-                    <span>Speak Question</span>
+                    <span>Start Live Discussion</span>
                   </button>
                 )}
               </div>
             </div>
+
+            {/* Live Voice Level Meter */}
+            {discussionActive && (
+              <div className="space-y-1.5">
+                <div className="h-1.5 w-full rounded-full bg-[#101722] overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-[#35D6E8] to-[#8B70FF] transition-all duration-75"
+                    style={{ width: `${Math.max(4, Math.round(micLevel * 100))}%` }}
+                  />
+                </div>
+              </div>
+            )}
 
             {voiceError && (
               <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-[#8B70FF]/10 border border-[#8B70FF]/35 text-xs text-[#F1F5F9]">
@@ -418,14 +751,14 @@ export function SystemsIntelligenceConsole() {
 
             <div className="space-y-2">
               <div className="text-[11px] font-medium text-[#B8C5D6]/80">
-                Or tap a prompt for an immediate spoken reply:
+                Or start with a topic below:
               </div>
               <div className="flex flex-wrap gap-2">
                 {BRIEFING_PRESETS.map((hint) => (
                   <button
                     key={hint}
                     type="button"
-                    disabled={voiceProcessing || recording}
+                    disabled={livePhase === 'thinking'}
                     onClick={() => void sendVoiceTurn({ text: hint })}
                     className="text-left text-xs px-3 py-1.5 rounded-lg bg-[#101722] border border-[#B8C5D6]/18 text-[#D4DFEC] hover:border-[#35D6E8]/50 hover:text-[#35D6E8] disabled:opacity-50 transition-colors cursor-pointer"
                   >
@@ -439,7 +772,7 @@ export function SystemsIntelligenceConsole() {
               onSubmit={(e) => {
                 e.preventDefault();
                 const q = voiceTextInput.trim();
-                if (!q || voiceProcessing) return;
+                if (!q || livePhase === 'thinking') return;
                 setVoiceTextInput('');
                 void sendVoiceTurn({ text: q });
               }}
@@ -449,13 +782,13 @@ export function SystemsIntelligenceConsole() {
                 type="text"
                 value={voiceTextInput}
                 onChange={(e) => setVoiceTextInput(e.target.value)}
-                placeholder="Or type a question for a spoken reply..."
+                placeholder="Or type a message into the live discussion..."
                 className="flex-1 min-w-0 px-3.5 py-2 rounded-xl bg-[#101722] border border-[#B8C5D6]/20 text-xs sm:text-sm text-[#F1F5F9] placeholder-[#B8C5D6]/50 focus:outline-none focus:border-[#35D6E8]"
               />
               <button
                 type="submit"
-                disabled={voiceProcessing || !voiceTextInput.trim()}
-                aria-label="Ask voice briefing"
+                disabled={livePhase === 'thinking' || !voiceTextInput.trim()}
+                aria-label="Send message to live discussion"
                 className="px-3.5 py-2 rounded-xl bg-[#35D6E8]/15 border border-[#35D6E8]/45 text-[#35D6E8] hover:bg-[#35D6E8] hover:text-[#090D14] disabled:opacity-45 transition-colors cursor-pointer"
               >
                 <Send className="w-4 h-4" />
@@ -482,7 +815,7 @@ export function SystemsIntelligenceConsole() {
         </div>
       )}
 
-      {/* MODE 2: FREE-TIER ARCHITECTURAL Q&A */}
+      {/* MODE 2: ARCHITECTURAL Q&A */}
       {mode === 'ask' && (
         <div className="space-y-4">
           <p className="text-sm text-[#D4DFEC] leading-relaxed">
@@ -509,7 +842,7 @@ export function SystemsIntelligenceConsole() {
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#35D6E8] hover:bg-[#5ce1f0] disabled:opacity-50 text-xs sm:text-sm font-semibold text-[#090D14] transition-colors cursor-pointer shrink-0"
             >
               {askLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <BrandLoaderIcon size="xs" />
               ) : (
                 <Send className="w-4 h-4" />
               )}

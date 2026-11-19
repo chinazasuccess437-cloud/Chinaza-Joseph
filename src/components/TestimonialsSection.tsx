@@ -1,5 +1,6 @@
 import { ArrowDown, MessageSquarePlus, Quote, ShieldCheck, Trash2 } from 'lucide-react';
 import { usePerspectives } from '../context/PerspectivesContext';
+import { BrandLoaderIcon } from './BrandLoaderIcon';
 
 function formatPerspectiveDate(timestamp: { toDate?: () => Date } | null): string {
   if (!timestamp || typeof timestamp.toDate !== 'function') return 'Verified entry';
@@ -53,8 +54,9 @@ export function TestimonialsSection() {
         </div>
 
         {perspectivesLoading && (
-          <div className="living-glass rounded-3xl p-8 text-sm text-[#C9D6E6]">
-            Loading verified visitor perspectives…
+          <div className="living-glass rounded-3xl p-8 flex items-center gap-4 text-sm text-[#C9D6E6]">
+            <BrandLoaderIcon size="sm" />
+            <span>Loading verified visitor perspectives…</span>
           </div>
         )}
 
